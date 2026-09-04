@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><style>
+body{margin:0;background:#0e0f11;font-family:Helvetica Neue,Helvetica,Arial,sans-serif}
+a{color:#3f8fd0}a:hover{color:#66a8de}
+.dv-turn{padding:40px 44px 34px;border-bottom:1px solid rgba(255,255,255,.07);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#e6e8ea;color:#101113;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 Helvetica,Arial,sans-serif;color:#e6e8ea}
+.dv-tnote{font:400 11px/1.2 Helvetica,Arial,sans-serif;color:rgba(255,255,255,.42)}
+.dv-opts{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(255,255,255,.1);color:#e6e8ea;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 Helvetica,Arial,sans-serif;color:rgba(255,255,255,.5)}
+.dv-card{max-width:100%;background:#121315;border:1px solid #2b2f34;border-radius:9px;overflow:hidden}
+.dv-opt:target .dv-oid{background:#3f8fd0;color:#0e1114}
+.dv-next{margin:22px 0 0;font:12px/1.5 Helvetica,Arial,sans-serif;color:rgba(255,255,255,.45)}
+@keyframes sh{0%,100%{opacity:.35}50%{opacity:.7}}
+</style></helmet>
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Browse</span><span class="dv-tnote">server &rarr; remote files &rarr; NAS destination &rarr; queue</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Mobile 375 &middot; step 1, pick server</div>
+<div class="dv-card" style="width:375px;height:760px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="Browse" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid #1e2124;background:#151719">
+<div style="font:600 10px/16px ui-monospace,Menlo,monospace;color:#0e1114;background:#3f8fd0;border-radius:3px;padding:0 6px">1 SERVER</div>
+<div style="font:400 10px/16px ui-monospace,Menlo,monospace;color:#6d7378;padding:0 6px">2 FILES</div>
+<div style="font:400 10px/16px ui-monospace,Menlo,monospace;color:#6d7378;padding:0 6px">3 DESTINATION</div>
+</div>
+<sc-for list="{{ servers }}" as="s" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:11px;padding:11px 12px;min-height:44px;box-sizing:border-box;border-bottom:1px solid #1e2124">
+<div style="width:8px;height:8px;border-radius:5px;background:{{ s.dot }};flex:none"></div>
+<div style="flex:1;min-width:0">
+<div style="font:600 13px/1.3 Helvetica,Arial,sans-serif;color:#e6e8ea">{{ s.n }}</div>
+<div style="font:400 11px/1.4 ui-monospace,Menlo,monospace;color:#8b9196;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.u }}@{{ s.h }}</div>
+</div>
+<div style="font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378;flex:none">{{ s.lc }}</div>
+<div style="font:400 18px/1 Helvetica,Arial,sans-serif;color:#6d7378;flex:none">&#8250;</div>
+</div>
+</sc-for>
+<div style="flex:1"></div>
+<dc-import name="TabBar" active="Browse" badge="{{ 3 }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Mobile 375 &middot; step 2, remote listing + selection bar</div>
+<div class="dv-card" style="width:375px;height:760px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="prod-eu-1" back="{{ true }}" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid #1e2124;background:#151719">
+<div style="font:400 10px/16px ui-monospace,Menlo,monospace;color:#6d7378;padding:0 6px">1 SERVER</div>
+<div style="font:600 10px/16px ui-monospace,Menlo,monospace;color:#0e1114;background:#3f8fd0;border-radius:3px;padding:0 6px">2 FILES</div>
+<div style="font:400 10px/16px ui-monospace,Menlo,monospace;color:#6d7378;padding:0 6px">3 DESTINATION</div>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:6px;height:44px;padding:0 12px;border-bottom:1px solid #1e2124;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span>/</span><span>&hellip;</span><span>/</span><span>srv</span><span>/</span><span style="color:#e6e8ea">exports</span>
+<div style="flex:1"></div>
+<span style="font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378">9 items</span>
+</div>
+<div style="flex:1;overflow:hidden">
+<sc-for list="{{ remote }}" as="f" hint-placeholder-count="9">
+<div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;border-bottom:1px solid #1a1c1f;background:{{ f.bg }}">
+<div style="width:18px;height:18px;border-radius:3px;border:1.5px solid {{ f.cb }};background:{{ f.cbf }};flex:none;display:flex;align-items:center;justify-content:center;font:600 11px/1 Helvetica,Arial,sans-serif;color:#0e1114">{{ f.ck }}</div>
+<div style="width:16px;flex:none;font:600 9px/1 ui-monospace,Menlo,monospace;color:#6d7378;text-align:center;border:1px solid #2b2f34;border-radius:2px;padding:2px 0">{{ f.t }}</div>
+<span style="flex:1;min-width:0;font:400 12.5px/1.2 ui-monospace,Menlo,monospace;color:{{ f.tc }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.n }}</span>
+<span style="flex:none;font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196;width:52px;text-align:right">{{ f.s }}</span>
+<span style="flex:none;font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378;width:44px;text-align:right">{{ f.m }}</span>
+</div>
+</sc-for>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:9px 12px;background:#1f2226;border-top:1px solid #2b2f34">
+<div style="flex:1;min-width:0">
+<div style="font:600 12px/1.3 Helvetica,Arial,sans-serif;color:#e6e8ea">3 selected</div>
+<div style="font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#8b9196">6.14 GB &middot; 1 directory</div>
+</div>
+<div style="flex:none;height:38px;padding:0 14px;border-radius:5px;border:1px solid #3a3f45;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#8b9196">Clear</div>
+<div style="flex:none;height:38px;padding:0 14px;border-radius:5px;background:#3f8fd0;display:flex;align-items:center;font:600 12.5px/1 Helvetica,Arial,sans-serif;color:#0e1114">Download to&hellip;</div>
+</div>
+<dc-import name="TabBar" active="Browse" badge="{{ 3 }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Mobile 375 &middot; step 3, NAS destination</div>
+<div class="dv-card" style="width:375px;height:760px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="Choose destination" back="{{ true }}" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid #1e2124;background:#151719">
+<div style="font:400 10px/16px ui-monospace,Menlo,monospace;color:#6d7378;padding:0 6px">1 SERVER</div>
+<div style="font:400 10px/16px ui-monospace,Menlo,monospace;color:#6d7378;padding:0 6px">2 FILES</div>
+<div style="font:600 10px/16px ui-monospace,Menlo,monospace;color:#0e1114;background:#3f8fd0;border-radius:3px;padding:0 6px">3 DESTINATION</div>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:6px;height:44px;padding:0 12px;border-bottom:1px solid #1e2124;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span>/</span><span>volume1</span><span>/</span><span style="color:#e6e8ea">media</span>
+<div style="flex:1"></div>
+<div style="height:30px;padding:0 9px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 11px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">+ New folder</div>
+</div>
+<div style="flex:1;overflow:hidden">
+<sc-for list="{{ dest }}" as="d" hint-placeholder-count="6">
+<div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;border-bottom:1px solid #1a1c1f;background:{{ d.bg }}">
+<div style="width:16px;flex:none;font:600 9px/1 ui-monospace,Menlo,monospace;color:#6d7378;text-align:center;border:1px solid #2b2f34;border-radius:2px;padding:2px 0">D</div>
+<span style="flex:1;min-width:0;font:400 12.5px/1.2 ui-monospace,Menlo,monospace;color:{{ d.tc }}">{{ d.n }}</span>
+<span style="flex:none;font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378">{{ d.c }}</span>
+<div style="flex:none;font:400 18px/1 Helvetica,Arial,sans-serif;color:#6d7378">&#8250;</div>
+</div>
+</sc-for>
+</div>
+<div style="flex:none;padding:9px 12px;background:#1f2226;border-top:1px solid #2b2f34;display:flex;align-items:center;gap:10px">
+<div style="flex:1;min-width:0">
+<div style="display:flex;min-width:0;font:400 11.5px/1.4 ui-monospace,Menlo,monospace;color:#e6e8ea">
+<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/volume1/media/downloads</span><span style="white-space:nowrap">/sftp-relay</span>
+</div>
+<div style="font:400 10px/1.4 ui-monospace,Menlo,monospace;color:#6d7378">1.82 TB free of 7.28 TB</div>
+</div>
+<div style="flex:none;height:38px;padding:0 14px;border-radius:5px;background:#3f8fd0;display:flex;align-items:center;font:600 12.5px/1 Helvetica,Arial,sans-serif;color:#0e1114">Queue 3 items</div>
+</div>
+<dc-import name="TabBar" active="Browse" badge="{{ 3 }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Desktop 1280 &middot; remote pane + destination pane + persistent action bar</div>
+<div class="dv-card" style="width:1280px;height:760px;display:flex;color:#e6e8ea">
+<dc-import name="Sidebar" active="Browse" badge="{{ 3 }}" sse="live" hint-size="196px,100%"></dc-import>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid #2b2f34;background:#191b1e">
+<span style="font:600 14px/1 Helvetica,Arial,sans-serif">Browse</span>
+<span style="font:400 11px/1 ui-monospace,Menlo,monospace;color:#6d7378">remote &rarr; NAS</span>
+<div style="flex:1"></div>
+<div style="height:30px;padding:0 10px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;gap:7px;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#c3c8cc">Search this directory</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid #2b2f34">
+<div style="flex:none;display:flex;align-items:center;gap:9px;height:40px;padding:0 14px;border-bottom:1px solid #1e2124;background:#151719">
+<span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.06em">REMOTE</span>
+<div style="height:28px;padding:0 9px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;gap:7px">
+<div style="width:7px;height:7px;border-radius:4px;background:#5aa06f"></div>
+<span style="font:400 11.5px/1 Helvetica,Arial,sans-serif">prod-eu-1</span>
+<span style="font:400 9px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#9662;</span>
+</div>
+<div style="flex:1"></div>
+<span style="font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378">9 items &middot; 3 dirs</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:5px;height:34px;padding:0 14px;border-bottom:1px solid #1e2124;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span>/</span><span style="padding:2px 5px;border:1px solid #2b2f34;border-radius:3px;color:#6d7378">&hellip;</span><span>/</span><span>srv</span><span>/</span><span style="color:#e6e8ea">exports</span>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:12px;height:26px;padding:0 14px;border-bottom:1px solid #2b2f34;font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.05em">
+<div style="width:16px;flex:none"></div><div style="width:16px;flex:none">T</div>
+<span style="flex:1">NAME</span><span style="width:64px;text-align:right">SIZE</span><span style="width:124px;text-align:right">MODIFIED</span>
+</div>
+<div style="flex:1;overflow:hidden">
+<sc-for list="{{ remote }}" as="f" hint-placeholder-count="9">
+<div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 14px;border-bottom:1px solid #1a1c1f;background:{{ f.bg }}">
+<div style="width:16px;height:16px;border-radius:3px;border:1.5px solid {{ f.cb }};background:{{ f.cbf }};flex:none;display:flex;align-items:center;justify-content:center;font:600 10px/1 Helvetica,Arial,sans-serif;color:#0e1114">{{ f.ck }}</div>
+<div style="width:16px;flex:none;font:600 9px/1 ui-monospace,Menlo,monospace;color:#6d7378;text-align:center;border:1px solid #2b2f34;border-radius:2px;padding:2px 0">{{ f.t }}</div>
+<span style="flex:1;min-width:0;font:400 12px/1.2 ui-monospace,Menlo,monospace;color:{{ f.tc }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.n }}</span>
+<span style="width:64px;flex:none;font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196;text-align:right">{{ f.s }}</span>
+<span style="width:124px;flex:none;font:400 11px/1 ui-monospace,Menlo,monospace;color:#6d7378;text-align:right">{{ f.mf }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="width:420px;flex:none;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;height:40px;padding:0 14px;border-bottom:1px solid #1e2124;background:#151719">
+<span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.06em">DESTINATION &middot; NAS</span>
+<div style="flex:1"></div>
+<div style="height:28px;padding:0 9px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 11px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">+ New folder</div>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:5px;height:34px;padding:0 14px;border-bottom:1px solid #1e2124;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span>/</span><span>volume1</span><span>/</span><span style="color:#e6e8ea">media</span>
+</div>
+<div style="flex:1;overflow:hidden">
+<sc-for list="{{ dest }}" as="d" hint-placeholder-count="6">
+<div style="display:flex;align-items:center;gap:12px;height:32px;padding:0 14px;border-bottom:1px solid #1a1c1f;background:{{ d.bg }}">
+<div style="width:16px;flex:none;font:600 9px/1 ui-monospace,Menlo,monospace;color:#6d7378;text-align:center;border:1px solid #2b2f34;border-radius:2px;padding:2px 0">D</div>
+<span style="flex:1;min-width:0;font:400 12px/1.2 ui-monospace,Menlo,monospace;color:{{ d.tc }}">{{ d.n }}</span>
+<span style="flex:none;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#6d7378">{{ d.c }}</span>
+<span style="flex:none;font:400 14px/1 Helvetica,Arial,sans-serif;color:#6d7378">&#8250;</span>
+</div>
+</sc-for>
+</div>
+<div style="flex:none;padding:7px 14px;border-top:1px solid #2b2f34;font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378">1.82 TB free of 7.28 TB</div>
+</div>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:14px;height:62px;padding:0 16px;background:#1f2226;border-top:1px solid #2b2f34">
+<div style="flex:none">
+<div style="font:600 12.5px/1.3 Helvetica,Arial,sans-serif">3 selected</div>
+<div style="font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#8b9196">6.14 GB &middot; 1 directory, 2 files</div>
+</div>
+<div style="width:1px;height:32px;background:#2b2f34;flex:none"></div>
+<div style="flex:1;min-width:0">
+<div style="font:400 9.5px/1.4 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.05em">WRITING TO</div>
+<div style="display:flex;min-width:0;font:400 12px/1.4 ui-monospace,Menlo,monospace;color:#e6e8ea">
+<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/volume1/media/downloads</span><span style="white-space:nowrap">/sftp-relay</span>
+</div>
+</div>
+<div style="flex:none;height:38px;padding:0 14px;border-radius:5px;border:1px solid #3a3f45;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#8b9196">Clear selection</div>
+<div style="flex:none;height:38px;padding:0 18px;border-radius:5px;background:#3f8fd0;display:flex;align-items:center;font:600 12.5px/1 Helvetica,Arial,sans-serif;color:#0e1114">Download to&hellip;</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>States &middot; empty, loading, connection failed, permission denied (same blocks fill the desktop remote pane)</div>
+<div style="display:flex;gap:20px;flex-wrap:wrap">
+
+<div class="dv-card" style="width:375px;height:420px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="prod-eu-1" back="{{ true }}" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:6px;height:40px;padding:0 12px;border-bottom:1px solid #1e2124;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196"><span>/</span><span>&hellip;</span><span>/</span><span style="color:#e6e8ea">raw-dumps</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:0 40px;text-align:center">
+<div style="width:34px;height:34px;border:1.5px dashed #3a3f45;border-radius:5px"></div>
+<div style="font:600 13px/1.3 Helvetica,Arial,sans-serif">Directory is empty</div>
+<div style="font:400 11.5px/1.5 Helvetica,Arial,sans-serif;color:#8b9196">Nothing in <span style="font-family:ui-monospace,Menlo,monospace">/srv/exports/raw-dumps</span>.</div>
+<div style="margin-top:4px;height:38px;padding:0 14px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Go up one level</div>
+</div>
+</div>
+
+<div class="dv-card" style="width:375px;height:420px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="prod-eu-1" back="{{ true }}" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border-bottom:1px solid #1e2124;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196"><span>/srv/exports</span><div style="flex:1"></div><span style="font-size:10px;color:#3f8fd0">listing&hellip;</span></div>
+<div style="flex:1;overflow:hidden">
+<sc-for list="{{ skel }}" as="s" hint-placeholder-count="8">
+<div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;border-bottom:1px solid #1a1c1f">
+<div style="width:18px;height:18px;border-radius:3px;background:#22262a;flex:none;animation:sh 1.4s ease-in-out infinite"></div>
+<div style="flex:1;height:9px;border-radius:2px;background:#22262a;animation:sh 1.4s ease-in-out infinite"></div>
+<div style="width:44px;height:9px;border-radius:2px;background:#1d2023;animation:sh 1.4s ease-in-out infinite"></div>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div class="dv-card" style="width:375px;height:420px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="vendor-dropbox" back="{{ true }}" sse="down" hint-size="100%,48px"></dc-import>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:0 32px;text-align:center">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#c9605a;border:1px solid #4a2b2b;background:#231a1a;border-radius:3px;padding:4px 7px;letter-spacing:.06em">CONNECTION FAILED</div>
+<div style="font:600 13px/1.3 Helvetica,Arial,sans-serif">Can&rsquo;t reach vendor-dropbox</div>
+<div style="font:400 11px/1.6 ui-monospace,Menlo,monospace;color:#8b9196;word-break:break-word">dial tcp 203.0.113.44:22: i/o timeout after 10s</div>
+<div style="display:flex;gap:9px;margin-top:6px">
+<div style="height:38px;padding:0 14px;border-radius:5px;background:#3f8fd0;display:flex;align-items:center;font:600 12px/1 Helvetica,Arial,sans-serif;color:#0e1114">Retry</div>
+<div style="height:38px;padding:0 14px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Edit server</div>
+</div>
+</div>
+</div>
+
+<div class="dv-card" style="width:375px;height:420px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="prod-eu-1" back="{{ true }}" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:6px;height:40px;padding:0 12px;border-bottom:1px solid #1e2124;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196"><span>/</span><span>&hellip;</span><span>/</span><span style="color:#e6e8ea">private</span></div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:0 32px;text-align:center">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#c2a25c;border:1px solid #45391f;background:#221e14;border-radius:3px;padding:4px 7px;letter-spacing:.06em">PERMISSION DENIED</div>
+<div style="font:600 13px/1.3 Helvetica,Arial,sans-serif">deploy can&rsquo;t read this directory</div>
+<div style="font:400 11px/1.6 ui-monospace,Menlo,monospace;color:#8b9196;word-break:break-word">sftp: permission denied (opendir /srv/private)</div>
+<div style="margin-top:6px;height:38px;padding:0 14px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Back to /srv</div>
+</div>
+</div>
+
+</div></div>
+</div>
+<p class="dv-next">Try next: "make the mobile file rows denser" &middot; "show the destination step as a bottom sheet instead of a step" &middot; "add a search field to the remote pane"</p>
+</section>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Queue</span><span class="dv-tnote">live transfers &middot; aggregate header, per-job cards</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a"><div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Mobile &middot; empty queue</div>
+<div class="dv-card" style="width:375px;height:460px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="Queue" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:14px;height:38px;padding:0 12px;border-bottom:1px solid #1e2124;background:#151719;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#6d7378">
+<span>0 ACTIVE</span><span>0 QUEUED</span><span>0 B/s</span>
+</div>
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:0 40px;text-align:center">
+<div style="width:34px;height:34px;border:1.5px dashed #3a3f45;border-radius:5px"></div>
+<div style="font:600 13px/1.3 Helvetica,Arial,sans-serif">Nothing transferring</div>
+<div style="font:400 11.5px/1.5 Helvetica,Arial,sans-serif;color:#8b9196">Queued downloads appear here and keep running if you close the tab.</div>
+<div style="margin-top:4px;height:38px;padding:0 14px;border-radius:5px;background:#3f8fd0;display:flex;align-items:center;font:600 12px/1 Helvetica,Arial,sans-serif;color:#0e1114">Browse a server</div>
+</div>
+<dc-import name="TabBar" active="Queue" badge="{{ false }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="2b"><div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Mobile &middot; one job running</div>
+<div class="dv-card" style="width:375px;height:460px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="Queue" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:14px;height:38px;padding:0 12px;border-bottom:1px solid #1e2124;background:#151719;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span style="color:#e6e8ea">1 ACTIVE</span><span>0 QUEUED</span><span style="color:#3f8fd0">18.4 MB/s</span>
+<div style="flex:1"></div><span style="color:#6d7378">Pause all</span>
+</div>
+<div style="flex:1;padding:12px;display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ jobOne }}" as="j" hint-placeholder-count="1">
+<div style="border:1px solid #2b2f34;border-radius:6px;background:#171a1c;padding:10px 11px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:center;gap:8px">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:{{ j.pc }};background:{{ j.pbg }};border:1px solid {{ j.pbd }};border-radius:3px;padding:4px 6px;letter-spacing:.05em">{{ j.pill }}</div>
+<span style="font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">{{ j.srv }}</span>
+<div style="flex:1"></div>
+<div style="width:32px;height:32px;margin:-6px -6px -6px 0;display:flex;align-items:center;justify-content:center;font:400 16px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#10005;</div>
+</div>
+<div style="display:flex;min-width:0;font:400 13px/1.3 ui-monospace,Menlo,monospace;color:#e6e8ea">
+<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.fh }}</span><span style="white-space:nowrap">{{ j.ft }}</span>
+</div>
+<div style="display:flex;min-width:0;font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#6d7378">
+<span style="flex:none">&rarr;&nbsp;</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.dh }}</span><span style="white-space:nowrap">{{ j.dt }}</span>
+</div>
+<sc-if value="{{ j.isRun }}" hint-placeholder-val="{{ true }}">
+<div>
+<div style="height:6px;border-radius:3px;background:#22262a;overflow:hidden"><div style="height:6px;background:{{ j.barC }};width:{{ j.pctW }}"></div></div>
+<div style="display:flex;align-items:baseline;gap:10px;margin-top:7px;font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span style="color:#e6e8ea;font-weight:600">{{ j.pctLabel }}</span><span>{{ j.speed }}</span><div style="flex:1"></div><span>ETA {{ j.eta }}</span>
+</div>
+<div style="margin-top:5px;font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378">{{ j.size }}</div>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<dc-import name="TabBar" active="Queue" badge="{{ 1 }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="2c"><div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Mobile &middot; five jobs, two running / three queued</div>
+<div class="dv-card" style="width:375px;height:760px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="Queue" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:14px;height:38px;padding:0 12px;border-bottom:1px solid #1e2124;background:#151719;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span style="color:#e6e8ea">2 ACTIVE</span><span>3 QUEUED</span><span style="color:#3f8fd0">27.5 MB/s</span>
+<div style="flex:1"></div><span style="color:#6d7378">Pause all</span>
+</div>
+<div style="flex:1;overflow:hidden;padding:12px;display:flex;flex-direction:column;gap:9px">
+<sc-for list="{{ jobs5 }}" as="j" hint-placeholder-count="5">
+<div style="border:1px solid #2b2f34;border-radius:6px;background:#171a1c;padding:9px 11px;display:flex;flex-direction:column;gap:7px">
+<div style="display:flex;align-items:center;gap:8px">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:{{ j.pc }};background:{{ j.pbg }};border:1px solid {{ j.pbd }};border-radius:3px;padding:4px 6px;letter-spacing:.05em">{{ j.pill }}</div>
+<span style="font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">{{ j.srv }}</span>
+<div style="flex:1"></div>
+<div style="width:32px;height:32px;margin:-7px -6px -7px 0;display:flex;align-items:center;justify-content:center;font:400 16px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#10005;</div>
+</div>
+<div style="display:flex;min-width:0;font:400 12.5px/1.3 ui-monospace,Menlo,monospace;color:#e6e8ea">
+<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.fh }}</span><span style="white-space:nowrap">{{ j.ft }}</span>
+</div>
+<div style="display:flex;min-width:0;font:400 10px/1.3 ui-monospace,Menlo,monospace;color:#6d7378">
+<span style="flex:none">&rarr;&nbsp;</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.dh }}</span><span style="white-space:nowrap">{{ j.dt }}</span>
+</div>
+<sc-if value="{{ j.isRun }}" hint-placeholder-val="{{ true }}">
+<div>
+<div style="height:6px;border-radius:3px;background:#22262a;overflow:hidden"><div style="height:6px;background:{{ j.barC }};width:{{ j.pctW }}"></div></div>
+<div style="display:flex;align-items:baseline;gap:10px;margin-top:6px;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span style="color:#e6e8ea;font-weight:600">{{ j.pctLabel }}</span><span>{{ j.speed }}</span><div style="flex:1"></div><span>ETA {{ j.eta }}</span>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ j.isQ }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;gap:10px;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#6d7378">
+<span style="color:#8b9196">{{ j.pos }}</span><div style="flex:1"></div><span>{{ j.size }}</span>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<dc-import name="TabBar" active="Queue" badge="{{ 5 }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="2d"><div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>Mobile &middot; failed job with error + retry</div>
+<div class="dv-card" style="width:375px;height:590px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="Queue" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;display:flex;align-items:center;gap:14px;height:38px;padding:0 12px;border-bottom:1px solid #1e2124;background:#151719;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span style="color:#e6e8ea">1 ACTIVE</span><span>1 QUEUED</span><span style="color:#c9605a">1 FAILED</span><span style="color:#3f8fd0">18.4 MB/s</span>
+</div>
+<div style="flex:1;overflow:hidden;padding:12px;display:flex;flex-direction:column;gap:9px">
+<sc-for list="{{ jobsFail }}" as="j" hint-placeholder-count="3">
+<div style="border:1px solid {{ j.pbd }};border-radius:6px;background:#171a1c;padding:9px 11px;display:flex;flex-direction:column;gap:7px">
+<div style="display:flex;align-items:center;gap:8px">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:{{ j.pc }};background:{{ j.pbg }};border:1px solid {{ j.pbd }};border-radius:3px;padding:4px 6px;letter-spacing:.05em">{{ j.pill }}</div>
+<span style="font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">{{ j.srv }}</span>
+<div style="flex:1"></div>
+<div style="width:32px;height:32px;margin:-7px -6px -7px 0;display:flex;align-items:center;justify-content:center;font:400 16px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#10005;</div>
+</div>
+<div style="display:flex;min-width:0;font:400 12.5px/1.3 ui-monospace,Menlo,monospace;color:#e6e8ea">
+<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.fh }}</span><span style="white-space:nowrap">{{ j.ft }}</span>
+</div>
+<div style="display:flex;min-width:0;font:400 10px/1.3 ui-monospace,Menlo,monospace;color:#6d7378">
+<span style="flex:none">&rarr;&nbsp;</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.dh }}</span><span style="white-space:nowrap">{{ j.dt }}</span>
+</div>
+<sc-if value="{{ j.isFail }}" hint-placeholder-val="{{ true }}">
+<div>
+<div style="padding:7px 8px;border-radius:4px;background:#1b1516;font:400 10.5px/1.5 ui-monospace,Menlo,monospace;color:#c9605a;word-break:break-word">{{ j.err }}</div>
+<div style="display:flex;gap:8px;margin-top:8px">
+<div style="height:36px;padding:0 13px;border-radius:5px;background:#3f8fd0;display:flex;align-items:center;font:600 12px/1 Helvetica,Arial,sans-serif;color:#0e1114">Retry</div>
+<div style="height:36px;padding:0 13px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Remove</div>
+<div style="flex:1"></div>
+<div style="font:400 10px/36px ui-monospace,Menlo,monospace;color:#6d7378">{{ j.size }}</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ j.isRun }}" hint-placeholder-val="{{ false }}">
+<div>
+<div style="height:6px;border-radius:3px;background:#22262a;overflow:hidden"><div style="height:6px;background:{{ j.barC }};width:{{ j.pctW }}"></div></div>
+<div style="display:flex;align-items:baseline;gap:10px;margin-top:6px;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span style="color:#e6e8ea;font-weight:600">{{ j.pctLabel }}</span><span>{{ j.speed }}</span><div style="flex:1"></div><span>ETA {{ j.eta }}</span>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ j.isQ }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:baseline;gap:10px;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#6d7378">
+<span style="color:#8b9196">{{ j.pos }}</span><div style="flex:1"></div><span>{{ j.size }}</span>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<dc-import name="TabBar" active="Queue" badge="{{ 2 }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="2e"><div class="dv-olabel"><a class="dv-oid" href="#2e">2e</a>Desktop 1280 &middot; dense rows, bar stays prominent</div>
+<div class="dv-card" style="width:1280px;height:560px;display:flex;color:#e6e8ea">
+<dc-import name="Sidebar" active="Queue" badge="{{ 5 }}" sse="live" hint-size="196px,100%"></dc-import>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:16px;height:48px;padding:0 16px;border-bottom:1px solid #2b2f34;background:#191b1e">
+<span style="font:600 14px/1 Helvetica,Arial,sans-serif">Queue</span>
+<div style="display:flex;align-items:baseline;gap:16px;font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span style="color:#e6e8ea">2 ACTIVE</span><span>2 QUEUED</span><span style="color:#c9605a">1 FAILED</span><span style="color:#3f8fd0">27.5 MB/s combined</span>
+</div>
+<div style="flex:1"></div>
+<div style="height:30px;padding:0 11px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 11.5px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Pause all</div>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:14px;height:26px;padding:0 16px;border-bottom:1px solid #2b2f34;font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.05em">
+<span style="width:78px;flex:none">STATUS</span><span style="flex:1">FILE &rarr; DESTINATION</span><span style="width:240px;flex:none">PROGRESS</span><span style="width:78px;flex:none;text-align:right">SPEED</span><span style="width:78px;flex:none;text-align:right">ETA</span><span style="width:32px;flex:none"></span>
+</div>
+<div style="flex:1;overflow:hidden">
+<sc-for list="{{ jobsDesk }}" as="j" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;gap:14px;min-height:56px;padding:8px 16px;box-sizing:border-box;border-bottom:1px solid #1e2124">
+<div style="width:78px;flex:none"><div style="display:inline-block;font:600 9.5px/1 ui-monospace,Menlo,monospace;color:{{ j.pc }};background:{{ j.pbg }};border:1px solid {{ j.pbd }};border-radius:3px;padding:4px 6px;letter-spacing:.05em">{{ j.pill }}</div></div>
+<div style="flex:1;min-width:0">
+<div style="display:flex;min-width:0;font:400 12.5px/1.35 ui-monospace,Menlo,monospace;color:#e6e8ea">
+<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.fh }}</span><span style="white-space:nowrap">{{ j.ft }}</span>
+<span style="flex:none;color:#6d7378;font-size:10.5px;padding-left:8px">{{ j.srv }}</span>
+</div>
+<div style="display:flex;min-width:0;font:400 10.5px/1.35 ui-monospace,Menlo,monospace;color:#6d7378">
+<span style="flex:none">&rarr;&nbsp;</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.dh }}</span><span style="white-space:nowrap">{{ j.dt }}</span>
+</div>
+<sc-if value="{{ j.isFail }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;gap:9px;margin-top:5px">
+<span style="font:400 10.5px/1.4 ui-monospace,Menlo,monospace;color:#c9605a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.err }}</span>
+<div style="flex:none;height:24px;padding:0 9px;border-radius:4px;background:#3f8fd0;display:flex;align-items:center;font:600 10.5px/1 Helvetica,Arial,sans-serif;color:#0e1114">Retry</div>
+</div>
+</sc-if>
+</div>
+<div style="width:240px;flex:none">
+<sc-if value="{{ j.isRun }}" hint-placeholder-val="{{ true }}">
+<div>
+<div style="height:8px;border-radius:4px;background:#22262a;overflow:hidden"><div style="height:8px;background:{{ j.barC }};width:{{ j.pctW }}"></div></div>
+<div style="display:flex;gap:10px;margin-top:5px;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196"><span style="color:#e6e8ea;font-weight:600">{{ j.pctLabel }}</span><span>{{ j.size }}</span></div>
+</div>
+</sc-if>
+<sc-if value="{{ j.isQ }}" hint-placeholder-val="{{ false }}">
+<span style="font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196">{{ j.pos }}</span>
+</sc-if>
+<sc-if value="{{ j.isFail }}" hint-placeholder-val="{{ false }}">
+<div>
+<div style="height:8px;border-radius:4px;background:#22262a;overflow:hidden"><div style="height:8px;background:{{ j.barC }};width:{{ j.pctW }}"></div></div>
+<div style="margin-top:5px;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">stopped at {{ j.pctLabel }}</div>
+</div>
+</sc-if>
+</div>
+<span style="width:78px;flex:none;text-align:right;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#c3c8cc">{{ j.speed }}</span>
+<span style="width:78px;flex:none;text-align:right;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">{{ j.eta }}</span>
+<div style="width:32px;height:32px;flex:none;display:flex;align-items:center;justify-content:center;font:400 15px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#10005;</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "collapse finished jobs into a summary strip" &middot; "show per-segment progress inside the bar" &middot; "add a swipe-to-cancel affordance on mobile"</p>
+</section>
+<section class="dv-turn" id="t3">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">History</span><span class="dv-tnote">filter by status + server, search by name, failed rows expand</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="3a"><div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Mobile 375</div>
+<div class="dv-card" style="width:375px;height:760px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="History" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:none;padding:9px 12px;border-bottom:1px solid #1e2124;background:#151719;display:flex;flex-direction:column;gap:8px">
+<div style="height:38px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12px/1 ui-monospace,Menlo,monospace;color:#6d7378">Search by name</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<div style="height:30px;padding:0 9px;border-radius:15px;background:#3f8fd0;display:flex;align-items:center;font:600 10.5px/1 ui-monospace,Menlo,monospace;color:#0e1114">ALL 128</div>
+<div style="height:30px;padding:0 9px;border-radius:15px;border:1px solid #2b2f34;display:flex;align-items:center;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">DONE 119</div>
+<div style="height:30px;padding:0 9px;border-radius:15px;border:1px solid #2b2f34;display:flex;align-items:center;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">FAILED 6</div>
+<div style="height:30px;padding:0 9px;border-radius:15px;border:1px solid #2b2f34;display:flex;align-items:center;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">CANCELLED 3</div>
+<div style="height:30px;padding:0 9px;border-radius:15px;border:1px solid #2b2f34;display:flex;align-items:center;gap:5px;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">ALL SERVERS <span style="font-size:9px">&#9662;</span></div>
+</div>
+</div>
+<div style="flex:1;overflow:hidden">
+<sc-for list="{{ history }}" as="h" hint-placeholder-count="6">
+<div style="padding:10px 12px;border-bottom:1px solid #1a1c1f;display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;align-items:center;gap:8px">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:{{ h.pc }};background:{{ h.pbg }};border:1px solid {{ h.pbd }};border-radius:3px;padding:4px 6px;letter-spacing:.05em">{{ h.pill }}</div>
+<span style="flex:1;min-width:0;font:400 12.5px/1.3 ui-monospace,Menlo,monospace;color:#e6e8ea;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.n }}</span>
+<span style="flex:none;font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378">{{ h.when }}</span>
+</div>
+<div style="display:flex;min-width:0;font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#6d7378">
+<span style="flex:none">{{ h.srv }}&nbsp;&rarr;&nbsp;</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.dh }}</span><span style="white-space:nowrap">{{ h.dt }}</span>
+</div>
+<div style="display:flex;gap:12px;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span>{{ h.size }}</span><span>{{ h.dur }}</span>
+<sc-if value="{{ h.err }}" hint-placeholder-val="{{ false }}"><div style="flex:1;text-align:right;color:#c9605a">hide error &#9652;</div></sc-if>
+</div>
+<sc-if value="{{ h.err }}" hint-placeholder-val="{{ false }}">
+<div style="padding:8px;border-radius:4px;background:#1b1516;font:400 10px/1.6 ui-monospace,Menlo,monospace;color:#c9605a;white-space:pre-wrap;word-break:break-word">{{ h.err }}</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+<div style="flex:none;padding:9px 12px;border-top:1px solid #2b2f34;background:#1f2226;display:flex;align-items:center;gap:10px">
+<span style="flex:1;font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#8b9196">119 completed &middot; kept 30 days</span>
+<div style="height:38px;padding:0 13px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Clear completed</div>
+</div>
+<dc-import name="TabBar" active="History" badge="{{ 3 }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="3b"><div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>Desktop 1280 &middot; failed row expanded</div>
+<div class="dv-card" style="width:1280px;height:620px;display:flex;color:#e6e8ea">
+<dc-import name="Sidebar" active="History" badge="{{ 3 }}" sse="live" hint-size="196px,100%"></dc-import>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;gap:10px;height:48px;padding:0 16px;border-bottom:1px solid #2b2f34;background:#191b1e">
+<span style="font:600 14px/1 Helvetica,Arial,sans-serif">History</span>
+<div style="width:300px;height:30px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 10px;margin-left:6px;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#6d7378">Search by name</div>
+<div style="height:30px;padding:0 10px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;gap:6px;font:400 11px/1 ui-monospace,Menlo,monospace;color:#c3c8cc">STATUS: ALL <span style="font-size:9px">&#9662;</span></div>
+<div style="height:30px;padding:0 10px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;gap:6px;font:400 11px/1 ui-monospace,Menlo,monospace;color:#c3c8cc">SERVER: ALL <span style="font-size:9px">&#9662;</span></div>
+<div style="flex:1"></div>
+<span style="font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#6d7378">128 records &middot; kept 30 days</span>
+<div style="height:30px;padding:0 11px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 11.5px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Clear completed</div>
+</div>
+<div style="flex:none;display:flex;align-items:center;gap:14px;height:26px;padding:0 16px;border-bottom:1px solid #2b2f34;font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.05em">
+<span style="width:84px;flex:none">STATUS</span><span style="flex:1">NAME</span><span style="width:126px;flex:none">SERVER</span><span style="width:270px;flex:none">DESTINATION</span><span style="width:64px;flex:none;text-align:right">SIZE</span><span style="width:72px;flex:none;text-align:right">DURATION</span><span style="width:120px;flex:none;text-align:right">COMPLETED</span><span style="width:18px;flex:none"></span>
+</div>
+<div style="flex:1;overflow:hidden">
+<sc-for list="{{ history }}" as="h" hint-placeholder-count="6">
+<div style="border-bottom:1px solid #1e2124">
+<div style="display:flex;align-items:center;gap:14px;height:34px;padding:0 16px">
+<div style="width:84px;flex:none"><div style="display:inline-block;font:600 9.5px/1 ui-monospace,Menlo,monospace;color:{{ h.pc }};background:{{ h.pbg }};border:1px solid {{ h.pbd }};border-radius:3px;padding:4px 6px;letter-spacing:.05em">{{ h.pill }}</div></div>
+<span style="flex:1;min-width:0;font:400 12px/1 ui-monospace,Menlo,monospace;color:#e6e8ea;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.n }}</span>
+<span style="width:126px;flex:none;font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196">{{ h.srv }}</span>
+<div style="width:270px;flex:none;display:flex;min-width:0;font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196">
+<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ h.dh }}</span><span style="white-space:nowrap">{{ h.dt }}</span>
+</div>
+<span style="width:64px;flex:none;text-align:right;font:400 11px/1 ui-monospace,Menlo,monospace;color:#c3c8cc">{{ h.size }}</span>
+<span style="width:72px;flex:none;text-align:right;font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196">{{ h.dur }}</span>
+<span style="width:120px;flex:none;text-align:right;font:400 11px/1 ui-monospace,Menlo,monospace;color:#6d7378">{{ h.when }}</span>
+<span style="width:18px;flex:none;text-align:right;font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378">{{ h.chev }}</span>
+</div>
+<sc-if value="{{ h.err }}" hint-placeholder-val="{{ false }}">
+<div style="margin:0 16px 10px 114px;padding:9px 10px;border-radius:4px;background:#1b1516;border:1px solid #4a2b2b">
+<div style="font:600 9px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:6px">ERROR OUTPUT</div>
+<div style="font:400 10.5px/1.7 ui-monospace,Menlo,monospace;color:#c9605a;white-space:pre-wrap">{{ h.err }}</div>
+<div style="display:flex;gap:8px;margin-top:9px">
+<div style="height:26px;padding:0 10px;border-radius:4px;background:#3f8fd0;display:flex;align-items:center;font:600 11px/1 Helvetica,Arial,sans-serif;color:#0e1114">Retry transfer</div>
+<div style="height:26px;padding:0 10px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 11px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Copy output</div>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "add a date range filter" &middot; "group history rows by day" &middot; "show a bulk-select column instead of a single clear action"</p>
+</section>
+
+<section class="dv-turn" id="t4">
+<div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">Servers</span><span class="dv-tnote">reached from Settings on mobile, top-level on desktop</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="4a"><div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>Mobile &middot; server list</div>
+<div class="dv-card" style="width:375px;height:600px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="Servers" back="{{ true }}" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:1;padding:12px;display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ servers }}" as="s" hint-placeholder-count="3">
+<div style="border:1px solid #2b2f34;border-radius:6px;background:#171a1c;padding:10px 11px;display:flex;flex-direction:column;gap:7px">
+<div style="display:flex;align-items:center;gap:8px">
+<div style="width:8px;height:8px;border-radius:5px;background:{{ s.dot }};flex:none"></div>
+<span style="flex:1;font:600 13px/1.3 Helvetica,Arial,sans-serif">{{ s.n }}</span>
+<div style="font:600 9px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.05em">{{ s.stl }} &middot; {{ s.lc }}</div>
+</div>
+<div style="font:400 11.5px/1.5 ui-monospace,Menlo,monospace;color:#8b9196">{{ s.u }}@{{ s.h }}<br>{{ s.path }}</div>
+<div style="display:flex;gap:8px;margin-top:1px">
+<div style="height:36px;padding:0 13px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Edit</div>
+<div style="height:36px;padding:0 13px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#8b9196">Delete</div>
+</div>
+</div>
+</sc-for>
+<div style="height:44px;border:1px dashed #3a3f45;border-radius:6px;display:flex;align-items:center;justify-content:center;font:600 12.5px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">+ Add server</div>
+</div>
+<dc-import name="TabBar" active="Settings" badge="{{ 3 }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="4b"><div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a>Mobile &middot; add / edit form, test connection result</div>
+<div class="dv-card" style="width:375px;height:760px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="Edit server" back="{{ true }}" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:1;overflow:hidden;padding:12px;display:flex;flex-direction:column;gap:11px">
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">DISPLAY NAME</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace;color:#e6e8ea">prod-eu-1</div></div>
+<div style="display:flex;gap:9px">
+<div style="flex:1"><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">HOST</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace;color:#e6e8ea;overflow:hidden">sftp.eu1.internal</div></div>
+<div style="width:82px;flex:none"><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">PORT</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace;color:#e6e8ea">22</div></div>
+</div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">USERNAME</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace;color:#e6e8ea">deploy</div></div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">AUTH METHOD</div>
+<div style="display:flex;border:1px solid #3a3f45;border-radius:5px;overflow:hidden;height:42px">
+<div style="flex:1;display:flex;align-items:center;justify-content:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#8b9196">Password</div>
+<div style="flex:1;display:flex;align-items:center;justify-content:center;background:#3f8fd0;font:600 12px/1 Helvetica,Arial,sans-serif;color:#0e1114">Private key</div>
+</div></div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">PRIVATE KEY PATH</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace;color:#e6e8ea;overflow:hidden">/home/pi/.ssh/id_ed25519_eu1</div></div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">KEY PASSPHRASE &middot; OPTIONAL</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</div></div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">DEFAULT REMOTE PATH</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace;color:#e6e8ea">/srv/exports</div></div>
+<div style="display:flex;align-items:center;gap:10px">
+<div style="height:42px;padding:0 13px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Test connection</div>
+<div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px">
+<div style="width:7px;height:7px;border-radius:4px;background:#5aa06f;flex:none"></div>
+<span style="font:400 10.5px/1.4 ui-monospace,Menlo,monospace;color:#5aa06f">connected in 214 ms</span>
+</div>
+</div>
+</div>
+<div style="flex:none;padding:9px 12px;border-top:1px solid #2b2f34;background:#1f2226;display:flex;gap:9px">
+<div style="flex:1;height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;justify-content:center;font:400 12.5px/1 Helvetica,Arial,sans-serif;color:#8b9196">Cancel</div>
+<div style="flex:1;height:42px;border-radius:5px;background:#3f8fd0;display:flex;align-items:center;justify-content:center;font:600 12.5px/1 Helvetica,Arial,sans-serif;color:#0e1114">Save server</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="4c"><div class="dv-olabel"><a class="dv-oid" href="#4c">4c</a>Test failure + delete confirmation</div>
+<div style="display:flex;flex-direction:column;gap:20px">
+<div class="dv-card" style="width:375px;padding:12px;box-sizing:border-box;color:#e6e8ea">
+<div style="display:flex;align-items:flex-start;gap:10px">
+<div style="height:42px;padding:0 13px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc;flex:none">Test connection</div>
+<div style="flex:1;min-width:0;display:flex;gap:6px;padding-top:4px">
+<div style="width:7px;height:7px;border-radius:4px;background:#c9605a;flex:none;margin-top:5px"></div>
+<span style="font:400 10.5px/1.6 ui-monospace,Menlo,monospace;color:#c9605a;word-break:break-word">auth failed: no supported methods remain (publickey rejected)</span>
+</div>
+</div>
+</div>
+<div class="dv-card" style="width:375px;height:300px;display:flex;flex-direction:column;justify-content:flex-end;color:#e6e8ea;background:#0d0e10">
+<div style="flex:1;background:rgba(8,9,10,.72)"></div>
+<div style="border-top:1px solid #2b2f34;background:#1b1e21;padding:16px 14px 14px;display:flex;flex-direction:column;gap:9px">
+<div style="font:600 14px/1.3 Helvetica,Arial,sans-serif">Delete vendor-dropbox?</div>
+<div style="font:400 11.5px/1.6 Helvetica,Arial,sans-serif;color:#8b9196">The saved credentials and its stored key passphrase are removed from this Pi. 2 queued transfers from this server will be cancelled. Files already on the NAS are untouched.</div>
+<div style="display:flex;gap:9px;margin-top:4px">
+<div style="flex:1;height:44px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;justify-content:center;font:400 12.5px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Keep</div>
+<div style="flex:1;height:44px;border-radius:5px;background:#c9605a;display:flex;align-items:center;justify-content:center;font:600 12.5px/1 Helvetica,Arial,sans-serif;color:#0e1114">Delete server</div>
+</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="4d"><div class="dv-olabel"><a class="dv-oid" href="#4d">4d</a>Desktop 1280 &middot; list + edit panel</div>
+<div class="dv-card" style="width:1280px;height:600px;display:flex;color:#e6e8ea">
+<dc-import name="Sidebar" active="Servers" badge="{{ 3 }}" sse="live" hint-size="196px,100%"></dc-import>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;height:48px;padding:0 16px;border-bottom:1px solid #2b2f34;background:#191b1e">
+<span style="font:600 14px/1 Helvetica,Arial,sans-serif">Servers</span>
+<span style="font:400 11px/1 ui-monospace,Menlo,monospace;color:#6d7378;padding-left:10px">3 configured</span>
+<div style="flex:1"></div>
+<div style="height:30px;padding:0 12px;border-radius:4px;background:#3f8fd0;display:flex;align-items:center;font:600 11.5px/1 Helvetica,Arial,sans-serif;color:#0e1114">+ Add server</div>
+</div>
+<div style="flex:1;min-height:0;display:flex">
+<div style="flex:1;min-width:0;padding:14px;display:flex;flex-direction:column;gap:10px;border-right:1px solid #2b2f34">
+<sc-for list="{{ servers }}" as="s" hint-placeholder-count="3">
+<div style="border:1px solid #2b2f34;border-radius:6px;background:#171a1c;padding:11px 12px;display:flex;align-items:center;gap:12px">
+<div style="width:8px;height:8px;border-radius:5px;background:{{ s.dot }};flex:none"></div>
+<div style="flex:1;min-width:0">
+<div style="font:600 13px/1.4 Helvetica,Arial,sans-serif">{{ s.n }}</div>
+<div style="font:400 11px/1.4 ui-monospace,Menlo,monospace;color:#8b9196">{{ s.u }}@{{ s.h }} &middot; {{ s.path }}</div>
+</div>
+<div style="font:600 9px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.05em;flex:none">{{ s.stl }} &middot; {{ s.lc }}</div>
+<div style="height:30px;padding:0 11px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 11.5px/1 Helvetica,Arial,sans-serif;color:#c3c8cc;flex:none">Edit</div>
+<div style="height:30px;padding:0 11px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 11.5px/1 Helvetica,Arial,sans-serif;color:#8b9196;flex:none">Delete</div>
+</div>
+</sc-for>
+</div>
+<div style="width:400px;flex:none;padding:14px;display:flex;flex-direction:column;gap:10px;background:#151719">
+<div style="font:600 12px/1 Helvetica,Arial,sans-serif;color:#e6e8ea">Edit &middot; prod-eu-1</div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">DISPLAY NAME</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace">prod-eu-1</div></div>
+<div style="display:flex;gap:9px">
+<div style="flex:1"><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">HOST</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace;overflow:hidden">sftp.eu1.internal</div></div>
+<div style="width:74px;flex:none"><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">PORT</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace">22</div></div>
+</div>
+<div style="display:flex;gap:9px">
+<div style="flex:1"><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">USERNAME</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace">deploy</div></div>
+<div style="flex:1"><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">AUTH METHOD</div>
+<div style="display:flex;border:1px solid #3a3f45;border-radius:4px;overflow:hidden;height:32px">
+<div style="flex:1;display:flex;align-items:center;justify-content:center;font:400 11.5px/1 Helvetica,Arial,sans-serif;color:#8b9196">Password</div>
+<div style="flex:1;display:flex;align-items:center;justify-content:center;background:#3f8fd0;font:600 11.5px/1 Helvetica,Arial,sans-serif;color:#0e1114">Key</div>
+</div></div>
+</div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">PRIVATE KEY PATH</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace;overflow:hidden">/home/pi/.ssh/id_ed25519_eu1</div></div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">KEY PASSPHRASE &middot; OPTIONAL</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace;color:#8b9196">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</div></div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">DEFAULT REMOTE PATH</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace">/srv/exports</div></div>
+<div style="display:flex;align-items:center;gap:9px;margin-top:2px">
+<div style="height:32px;padding:0 11px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 11.5px/1 Helvetica,Arial,sans-serif;color:#c3c8cc;flex:none">Test connection</div>
+<div style="display:flex;align-items:center;gap:6px"><div style="width:7px;height:7px;border-radius:4px;background:#5aa06f"></div><span style="font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#5aa06f">connected in 214 ms</span></div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;gap:9px">
+<div style="height:34px;padding:0 13px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#8b9196">Cancel</div>
+<div style="height:34px;padding:0 15px;border-radius:4px;background:#3f8fd0;display:flex;align-items:center;font:600 12px/1 Helvetica,Arial,sans-serif;color:#0e1114">Save server</div>
+</div>
+</div>
+</div>
+</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "show the add-server form as an empty state" &middot; "add host key fingerprint confirmation" &middot; "move Servers to its own mobile tab"</p>
+</section>
+<section class="dv-turn" id="t5">
+<div class="dv-thd"><a class="dv-tid" href="#t5">5</a><span class="dv-tname">Settings</span><span class="dv-tnote">NAS connection, allowed roots, transfer tuning, retention</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="5a"><div class="dv-olabel"><a class="dv-oid" href="#5a">5a</a>Mobile 375 &middot; scrolled full length</div>
+<div class="dv-card" style="width:375px;height:1080px;display:flex;flex-direction:column;color:#e6e8ea">
+<dc-import name="MobileTop" title="Settings" sse="live" hint-size="100%,48px"></dc-import>
+<div style="flex:1;overflow:hidden">
+<div style="padding:12px;display:flex;flex-direction:column;gap:11px;border-bottom:1px solid #1e2124">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.08em">NAS CONNECTION</div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">HOST</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace">nas.lan</div></div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">SSH USERNAME</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace">relay</div></div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:5px">KEY PATH</div><div style="height:42px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;padding:0 10px;font:400 12.5px/1 ui-monospace,Menlo,monospace;overflow:hidden">/home/pi/.ssh/id_ed25519_nas</div></div>
+<div style="display:flex;align-items:center;gap:10px">
+<div style="height:42px;padding:0 13px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc;flex:none">Test NAS</div>
+<div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px"><div style="width:7px;height:7px;border-radius:4px;background:#5aa06f;flex:none"></div><span style="font:400 10.5px/1.4 ui-monospace,Menlo,monospace;color:#5aa06f">write ok in 38 ms</span></div>
+</div>
+</div>
+<div style="padding:12px;display:flex;flex-direction:column;gap:9px;border-bottom:1px solid #1e2124">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.08em">ALLOWED DESTINATION ROOTS</div>
+<div style="font:400 11px/1.6 Helvetica,Arial,sans-serif;color:#8b9196">Transfers are refused if the destination falls outside these paths.</div>
+<div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 10px;border:1px solid #2b2f34;border-radius:5px"><span style="flex:1;min-width:0;font:400 12px/1 ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/volume1/media/downloads</span><div style="width:32px;height:32px;margin-right:-8px;display:flex;align-items:center;justify-content:center;font:400 15px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#10005;</div></div>
+<div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 10px;border:1px solid #2b2f34;border-radius:5px"><span style="flex:1;min-width:0;font:400 12px/1 ui-monospace,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/volume1/media/documents</span><div style="width:32px;height:32px;margin-right:-8px;display:flex;align-items:center;justify-content:center;font:400 15px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#10005;</div></div>
+<div style="height:44px;border:1px dashed #3a3f45;border-radius:5px;display:flex;align-items:center;justify-content:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">+ Add root</div>
+</div>
+<div style="padding:12px;display:flex;flex-direction:column;gap:13px;border-bottom:1px solid #1e2124">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.08em">TRANSFER TUNING</div>
+<div style="display:flex;align-items:flex-start;gap:12px">
+<div style="flex:1"><div style="font:600 12.5px/1.4 Helvetica,Arial,sans-serif">Concurrent jobs</div><div style="font:400 11px/1.6 Helvetica,Arial,sans-serif;color:#8b9196">More jobs at once finishes a batch sooner. Too many and each one crawls, and the Pi&rsquo;s CPU becomes the bottleneck.</div></div>
+<div style="flex:none;display:flex;align-items:center;border:1px solid #3a3f45;border-radius:5px;overflow:hidden">
+<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font:400 17px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">&minus;</div>
+<div style="width:38px;text-align:center;font:600 14px/1 ui-monospace,Menlo,monospace">2</div>
+<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font:400 17px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">+</div>
+</div>
+</div>
+<div style="display:flex;align-items:flex-start;gap:12px">
+<div style="flex:1"><div style="font:600 12.5px/1.4 Helvetica,Arial,sans-serif">Parallel segments per job</div><div style="font:400 11px/1.6 Helvetica,Arial,sans-serif;color:#8b9196">Splits one file across several SFTP streams. Helps on high-latency links; some servers throttle or reject it.</div></div>
+<div style="flex:none;display:flex;align-items:center;border:1px solid #3a3f45;border-radius:5px;overflow:hidden">
+<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font:400 17px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">&minus;</div>
+<div style="width:38px;text-align:center;font:600 14px/1 ui-monospace,Menlo,monospace">4</div>
+<div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font:400 17px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">+</div>
+</div>
+</div>
+</div>
+<div style="padding:12px;display:flex;flex-direction:column;gap:9px;border-bottom:1px solid #1e2124">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.08em">HISTORY RETENTION</div>
+<div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 10px;border:1px solid #3a3f45;border-radius:5px"><span style="flex:1;font:400 12.5px/1 ui-monospace,Menlo,monospace">30 days</span><span style="font:400 10px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#9662;</span></div>
+<div style="font:400 11px/1.6 Helvetica,Arial,sans-serif;color:#8b9196">Completed and cancelled jobs are dropped after this. Failed jobs are kept until cleared.</div>
+</div>
+<div style="padding:0 12px">
+<div style="display:flex;align-items:center;gap:10px;height:52px;border-bottom:1px solid #1e2124"><span style="flex:1;font:400 13px/1 Helvetica,Arial,sans-serif">Servers</span><span style="font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196">3</span><span style="font:400 18px/1 Helvetica,Arial,sans-serif;color:#6d7378">&#8250;</span></div>
+<div style="display:flex;align-items:center;gap:10px;height:52px"><span style="flex:1;font:400 13px/1 Helvetica,Arial,sans-serif;color:#8b9196">Version</span><span style="font:400 11px/1 ui-monospace,Menlo,monospace;color:#6d7378">0.9.3 &middot; pi-relay</span></div>
+</div>
+</div>
+<dc-import name="TabBar" active="Settings" badge="{{ 3 }}" hint-size="100%,56px"></dc-import>
+</div></div>
+
+<div class="dv-opt" id="5b"><div class="dv-olabel"><a class="dv-oid" href="#5b">5b</a>Desktop 1280 &middot; two columns</div>
+<div class="dv-card" style="width:1280px;height:600px;display:flex;color:#e6e8ea">
+<dc-import name="Sidebar" active="Settings" badge="{{ 3 }}" sse="live" hint-size="196px,100%"></dc-import>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column">
+<div style="flex:none;display:flex;align-items:center;height:48px;padding:0 16px;border-bottom:1px solid #2b2f34;background:#191b1e">
+<span style="font:600 14px/1 Helvetica,Arial,sans-serif">Settings</span>
+<div style="flex:1"></div>
+<span style="font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#6d7378">0.9.3 &middot; pi-relay</span>
+</div>
+<div style="flex:1;min-height:0;display:flex;gap:0">
+<div style="flex:1;min-width:0;padding:16px;display:flex;flex-direction:column;gap:16px;border-right:1px solid #2b2f34">
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.08em">NAS CONNECTION</div>
+<div style="display:flex;gap:10px">
+<div style="flex:1"><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">HOST</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace">nas.lan</div></div>
+<div style="flex:1"><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">SSH USERNAME</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace">relay</div></div>
+</div>
+<div><div style="font:400 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em;margin-bottom:4px">KEY PATH</div><div style="height:32px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;padding:0 9px;font:400 12px/1 ui-monospace,Menlo,monospace">/home/pi/.ssh/id_ed25519_nas</div></div>
+<div style="display:flex;align-items:center;gap:10px"><div style="height:32px;padding:0 11px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 11.5px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Test NAS connection</div><div style="display:flex;align-items:center;gap:6px"><div style="width:7px;height:7px;border-radius:4px;background:#5aa06f"></div><span style="font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#5aa06f">write ok in 38 ms</span></div></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.08em">ALLOWED DESTINATION ROOTS</div>
+<div style="font:400 11px/1.6 Helvetica,Arial,sans-serif;color:#8b9196">Transfers are refused if the destination falls outside these paths.</div>
+<div style="display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border:1px solid #2b2f34;border-radius:4px"><span style="flex:1;font:400 12px/1 ui-monospace,Menlo,monospace">/volume1/media/downloads</span><span style="font:400 13px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#10005;</span></div>
+<div style="display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border:1px solid #2b2f34;border-radius:4px"><span style="flex:1;font:400 12px/1 ui-monospace,Menlo,monospace">/volume1/media/documents</span><span style="font:400 13px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#10005;</span></div>
+<div style="height:34px;border:1px dashed #3a3f45;border-radius:4px;display:flex;align-items:center;justify-content:center;font:400 11.5px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">+ Add root</div>
+</div>
+</div>
+<div style="width:480px;flex:none;padding:16px;display:flex;flex-direction:column;gap:16px;background:#151719">
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.08em">TRANSFER TUNING</div>
+<div style="display:flex;align-items:flex-start;gap:14px">
+<div style="flex:1"><div style="font:600 12.5px/1.4 Helvetica,Arial,sans-serif">Concurrent jobs</div><div style="font:400 11px/1.6 Helvetica,Arial,sans-serif;color:#8b9196">More jobs at once finishes a batch sooner. Too many and each one crawls, and the Pi&rsquo;s CPU becomes the bottleneck.</div></div>
+<div style="flex:none;display:flex;align-items:center;border:1px solid #3a3f45;border-radius:4px;overflow:hidden">
+<div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;font:400 15px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">&minus;</div>
+<div style="width:34px;text-align:center;font:600 13px/1 ui-monospace,Menlo,monospace">2</div>
+<div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;font:400 15px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">+</div>
+</div>
+</div>
+<div style="display:flex;align-items:flex-start;gap:14px">
+<div style="flex:1"><div style="font:600 12.5px/1.4 Helvetica,Arial,sans-serif">Parallel segments per job</div><div style="font:400 11px/1.6 Helvetica,Arial,sans-serif;color:#8b9196">Splits one file across several SFTP streams. Helps on high-latency links; some servers throttle or reject it.</div></div>
+<div style="flex:none;display:flex;align-items:center;border:1px solid #3a3f45;border-radius:4px;overflow:hidden">
+<div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;font:400 15px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">&minus;</div>
+<div style="width:34px;text-align:center;font:600 13px/1 ui-monospace,Menlo,monospace">4</div>
+<div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;font:400 15px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">+</div>
+</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:9px">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#6d7378;letter-spacing:.08em">HISTORY RETENTION</div>
+<div style="display:flex;align-items:center;gap:10px;width:200px;height:34px;padding:0 10px;border:1px solid #3a3f45;border-radius:4px"><span style="flex:1;font:400 12px/1 ui-monospace,Menlo,monospace">30 days</span><span style="font:400 9px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#9662;</span></div>
+<div style="font:400 11px/1.6 Helvetica,Arial,sans-serif;color:#8b9196">Completed and cancelled jobs are dropped after this. Failed jobs are kept until cleared.</div>
+</div>
+<div style="flex:1"></div>
+<div style="display:flex;gap:9px">
+<div style="height:34px;padding:0 15px;border-radius:4px;background:#3f8fd0;display:flex;align-items:center;font:600 12px/1 Helvetica,Arial,sans-serif;color:#0e1114">Save settings</div>
+<div style="height:34px;padding:0 13px;border:1px solid #3a3f45;border-radius:4px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#8b9196">Revert</div>
+</div>
+</div>
+</div>
+</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "add a bandwidth cap section" &middot; "make transfer tuning a single simple/aggressive toggle" &middot; "show the settings-saved confirmation"</p>
+</section>
+
+<section class="dv-turn" id="t6">
+<div class="dv-thd"><a class="dv-tid" href="#t6">6</a><span class="dv-tname">Component inventory</span><span class="dv-tnote">the seven repeated parts, shown at mobile width</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="6a"><div class="dv-olabel"><a class="dv-oid" href="#6a">6a</a>File row &middot; 44px mobile / 32px desktop, dir first, mid-truncating name</div>
+<div class="dv-card" style="width:375px;color:#e6e8ea">
+<div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;border-bottom:1px solid #1a1c1f;background:#1b2126">
+<div style="width:18px;height:18px;border-radius:3px;border:1.5px solid #3f8fd0;background:#3f8fd0;flex:none;display:flex;align-items:center;justify-content:center;font:600 11px/1 Helvetica,Arial,sans-serif;color:#0e1114">&#10003;</div>
+<div style="width:16px;flex:none;font:600 9px/1 ui-monospace,Menlo,monospace;color:#6d7378;text-align:center;border:1px solid #2b2f34;border-radius:2px;padding:2px 0">D</div>
+<span style="flex:1;min-width:0;font:400 12.5px/1.2 ui-monospace,Menlo,monospace">archive-2026</span>
+<span style="font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196;width:52px;text-align:right">&mdash;</span>
+<span style="font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378;width:44px;text-align:right">12 Aug</span>
+</div>
+<div style="display:flex;align-items:center;gap:10px;height:44px;padding:0 12px">
+<div style="width:18px;height:18px;border-radius:3px;border:1.5px solid #3a3f45;flex:none"></div>
+<div style="width:16px;flex:none;font:600 9px/1 ui-monospace,Menlo,monospace;color:#6d7378;text-align:center;border:1px solid #2b2f34;border-radius:2px;padding:2px 0">F</div>
+<div style="flex:1;min-width:0;display:flex;font:400 12.5px/1.2 ui-monospace,Menlo,monospace;color:#c3c8cc"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">db-snapshot-2026-08-3</span><span style="white-space:nowrap">1.tar.gz</span></div>
+<span style="font:400 11px/1 ui-monospace,Menlo,monospace;color:#8b9196;width:52px;text-align:right">4.2 GB</span>
+<span style="font:400 10px/1 ui-monospace,Menlo,monospace;color:#6d7378;width:44px;text-align:right">31 Aug</span>
+</div>
+</div></div>
+
+<div class="dv-opt" id="6b"><div class="dv-olabel"><a class="dv-oid" href="#6b">6b</a>Job card &middot; every state stacked</div>
+<div class="dv-card" style="width:375px;padding:12px;box-sizing:border-box;display:flex;flex-direction:column;gap:9px;color:#e6e8ea">
+<sc-for list="{{ jobsDesk }}" as="j" hint-placeholder-count="3">
+<div style="border:1px solid #2b2f34;border-radius:6px;background:#171a1c;padding:9px 11px;display:flex;flex-direction:column;gap:7px">
+<div style="display:flex;align-items:center;gap:8px">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:{{ j.pc }};background:{{ j.pbg }};border:1px solid {{ j.pbd }};border-radius:3px;padding:4px 6px;letter-spacing:.05em">{{ j.pill }}</div>
+<span style="font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">{{ j.srv }}</span>
+<div style="flex:1"></div>
+<div style="width:32px;height:32px;margin:-7px -6px -7px 0;display:flex;align-items:center;justify-content:center;font:400 16px/1 Helvetica,Arial,sans-serif;color:#8b9196">&#10005;</div>
+</div>
+<div style="display:flex;min-width:0;font:400 12.5px/1.3 ui-monospace,Menlo,monospace">
+<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ j.fh }}</span><span style="white-space:nowrap">{{ j.ft }}</span>
+</div>
+<sc-if value="{{ j.isRun }}" hint-placeholder-val="{{ true }}">
+<div><div style="height:6px;border-radius:3px;background:#22262a;overflow:hidden"><div style="height:6px;background:{{ j.barC }};width:{{ j.pctW }}"></div></div>
+<div style="display:flex;gap:10px;margin-top:6px;font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196"><span style="color:#e6e8ea;font-weight:600">{{ j.pctLabel }}</span><span>{{ j.speed }}</span><div style="flex:1"></div><span>ETA {{ j.eta }}</span></div></div>
+</sc-if>
+<sc-if value="{{ j.isQ }}" hint-placeholder-val="{{ false }}">
+<div style="font:400 10.5px/1 ui-monospace,Menlo,monospace;color:#8b9196">{{ j.pos }}</div>
+</sc-if>
+<sc-if value="{{ j.isFail }}" hint-placeholder-val="{{ false }}">
+<div style="padding:7px 8px;border-radius:4px;background:#1b1516;font:400 10.5px/1.5 ui-monospace,Menlo,monospace;color:#c9605a;word-break:break-word">{{ j.err }}</div>
+</sc-if>
+</div>
+</sc-for>
+</div></div>
+
+<div class="dv-opt" id="6c"><div class="dv-olabel"><a class="dv-oid" href="#6c">6c</a>Breadcrumb, selection bar, status pills</div>
+<div style="display:flex;flex-direction:column;gap:16px">
+<div class="dv-card" style="width:375px;color:#e6e8ea">
+<div style="display:flex;align-items:center;gap:5px;height:44px;padding:0 12px;border-bottom:1px solid #1e2124;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196"><span>/</span><span>srv</span><span>/</span><span style="color:#e6e8ea">exports</span></div>
+<div style="display:flex;align-items:center;gap:5px;height:44px;padding:0 12px;font:400 11.5px/1 ui-monospace,Menlo,monospace;color:#8b9196"><span>/</span><span style="padding:2px 5px;border:1px solid #2b2f34;border-radius:3px;color:#6d7378">&hellip;</span><span>/</span><span>2026</span><span>/</span><span style="color:#e6e8ea">week-35</span></div>
+</div>
+<div class="dv-card" style="width:375px;color:#e6e8ea">
+<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:#1f2226">
+<div style="flex:1;min-width:0"><div style="font:600 12px/1.3 Helvetica,Arial,sans-serif">3 selected</div><div style="font:400 10.5px/1.3 ui-monospace,Menlo,monospace;color:#8b9196">6.14 GB &middot; 1 directory</div></div>
+<div style="height:38px;padding:0 14px;border-radius:5px;border:1px solid #3a3f45;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#8b9196">Clear</div>
+<div style="height:38px;padding:0 14px;border-radius:5px;background:#3f8fd0;display:flex;align-items:center;font:600 12.5px/1 Helvetica,Arial,sans-serif;color:#0e1114">Download to&hellip;</div>
+</div>
+</div>
+<div class="dv-card" style="width:375px;padding:12px;box-sizing:border-box;display:flex;gap:7px;flex-wrap:wrap">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#3f8fd0;background:#1b2a36;border:1px solid #274a63;border-radius:3px;padding:4px 6px;letter-spacing:.05em">RUNNING</div>
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;background:#1d2023;border:1px solid #2b2f34;border-radius:3px;padding:4px 6px;letter-spacing:.05em">QUEUED</div>
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#5aa06f;background:#182220;border:1px solid #2a4034;border-radius:3px;padding:4px 6px;letter-spacing:.05em">DONE</div>
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#c9605a;background:#231a1a;border:1px solid #4a2b2b;border-radius:3px;padding:4px 6px;letter-spacing:.05em">FAILED</div>
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#8b9196;background:#1d2023;border:1px solid #2b2f34;border-radius:3px;padding:4px 6px;letter-spacing:.05em">CANCELLED</div>
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#c2a25c;background:#221e14;border:1px solid #45391f;border-radius:3px;padding:4px 6px;letter-spacing:.05em">PERMISSION DENIED</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="6d"><div class="dv-olabel"><a class="dv-oid" href="#6d">6d</a>Empty state, error state, connection indicator</div>
+<div style="display:flex;flex-direction:column;gap:16px">
+<div class="dv-card" style="width:375px;height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:0 40px;box-sizing:border-box;text-align:center;color:#e6e8ea">
+<div style="width:34px;height:34px;border:1.5px dashed #3a3f45;border-radius:5px"></div>
+<div style="font:600 13px/1.3 Helvetica,Arial,sans-serif">Directory is empty</div>
+<div style="font:400 11.5px/1.5 Helvetica,Arial,sans-serif;color:#8b9196">One line of context, then one action at most.</div>
+<div style="margin-top:2px;height:38px;padding:0 14px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Go up one level</div>
+</div>
+<div class="dv-card" style="width:375px;height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:0 32px;box-sizing:border-box;text-align:center;color:#e6e8ea">
+<div style="font:600 9.5px/1 ui-monospace,Menlo,monospace;color:#c9605a;border:1px solid #4a2b2b;background:#231a1a;border-radius:3px;padding:4px 7px;letter-spacing:.06em">CONNECTION FAILED</div>
+<div style="font:600 13px/1.3 Helvetica,Arial,sans-serif">Plain-language cause</div>
+<div style="font:400 11px/1.6 ui-monospace,Menlo,monospace;color:#8b9196">verbatim server output, monospace</div>
+<div style="display:flex;gap:9px;margin-top:2px">
+<div style="height:38px;padding:0 14px;border-radius:5px;background:#3f8fd0;display:flex;align-items:center;font:600 12px/1 Helvetica,Arial,sans-serif;color:#0e1114">Retry</div>
+<div style="height:38px;padding:0 14px;border:1px solid #3a3f45;border-radius:5px;display:flex;align-items:center;font:400 12px/1 Helvetica,Arial,sans-serif;color:#c3c8cc">Edit server</div>
+</div>
+</div>
+<div class="dv-card" style="width:375px;padding:12px;box-sizing:border-box;display:flex;gap:10px;color:#e6e8ea">
+<div style="flex:1;padding:9px 10px;border:1px solid #2b2f34;border-radius:5px;display:flex;align-items:center;gap:7px"><div style="width:7px;height:7px;border-radius:4px;background:#5aa06f"></div><span style="font:400 10px/1.3 ui-monospace,Menlo,monospace;color:#8b9196">event stream live</span></div>
+<div style="flex:1;padding:9px 10px;border:1px solid #4a2b2b;border-radius:5px;display:flex;align-items:center;gap:7px"><div style="width:7px;height:7px;border-radius:4px;background:#c9605a"></div><span style="font:400 10px/1.3 ui-monospace,Menlo,monospace;color:#c9605a">reconnecting&hellip;</span></div>
+</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "swap the D/F tags for icons" &middot; "tighten the job card to two lines" &middot; "show a compact desktop file row variant"</p>
+</section></x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  renderVals() {
+    const f = (t, n, s, m, mf, sel) => ({
+      t, n, s, m, mf,
+      bg: sel ? '#1b2126' : 'transparent',
+      cb: sel ? '#3f8fd0' : '#3a3f45',
+      cbf: sel ? '#3f8fd0' : 'transparent',
+      ck: sel ? '\u2713' : '',
+      tc: t === 'D' ? '#e6e8ea' : '#c3c8cc'
+    });
+    const remote = [
+      f('D', 'archive-2026', '\u2014', '12 Aug', '12 Aug 2026 04:10', true),
+      f('D', 'quarterly', '\u2014', '02 Jul', '02 Jul 2026 18:22'),
+      f('D', 'raw-dumps', '\u2014', '01 Sep', '01 Sep 2026 02:31'),
+      f('F', 'db-snapshot-2026-08-31.tar.gz', '4.2 GB', '31 Aug', '31 Aug 2026 03:14', true),
+      f('F', 'ledger-export-q2.csv', '812 MB', '14 Jul', '14 Jul 2026 21:02'),
+      f('F', 'nightly-2026-09-01.sql.gz', '1.1 GB', '01 Sep', '01 Sep 2026 02:30', true),
+      f('F', 'access-log-2026-08.tar.zst', '338 MB', '01 Sep', '01 Sep 2026 00:05'),
+      f('F', 'checksums.sha256', '48 KB', '01 Sep', '01 Sep 2026 02:31'),
+      f('F', 'README.md', '2.4 KB', '19 Mar', '19 Mar 2026 10:41')
+    ];
+    const d = (n, c, sel) => ({ n, c, bg: sel ? '#1b2126' : 'transparent', tc: sel ? '#e6e8ea' : '#c3c8cc' });
+    const dest = [
+      d('downloads', '12 items', true), d('incoming', 'empty'), d('movies', '340 items'),
+      d('music', '1,204 items'), d('photos', '7,918 items'), d('series', '88 items')
+    ];
+    const servers = [
+      { n: 'prod-eu-1', h: 'sftp.eu1.internal:22', u: 'deploy', lc: '4m ago', dot: '#5aa06f', st: 'ok', stl: 'CONNECTED', path: '/srv/exports' },
+      { n: 'backup-archive', h: '10.0.4.18:2222', u: 'archive', lc: '2h ago', dot: '#5aa06f', st: 'ok', stl: 'CONNECTED', path: '/mnt/archive' },
+      { n: 'vendor-dropbox', h: 'files.vendorcorp.com:22', u: 'relay', lc: '1d ago', dot: '#c9605a', st: 'fail', stl: 'AUTH FAILED', path: '/outgoing' }
+    ];
+    const PILL = {
+      run: ['RUNNING', '#3f8fd0', '#1b2a36', '#274a63'],
+      queued: ['QUEUED', '#8b9196', '#1d2023', '#2b2f34'],
+      failed: ['FAILED', '#c9605a', '#231a1a', '#4a2b2b'],
+      done: ['DONE', '#5aa06f', '#182220', '#2a4034'],
+      cancelled: ['CANCELLED', '#8b9196', '#1d2023', '#2b2f34']
+    };
+    const J = o => {
+      const p = PILL[o.st];
+      return Object.assign({ speed: '\u2014', eta: '\u2014' }, {
+        pill: p[0], pc: p[1], pbg: p[2], pbd: p[3], pctW: (o.pct || 0) + '%',
+        isRun: o.st === 'run', isQ: o.st === 'queued', isFail: o.st === 'failed',
+        pctLabel: (o.pct || 0) + '%', barC: o.st === 'failed' ? '#c9605a' : '#3f8fd0'
+      }, o);
+    };
+    const r1 = J({ st: 'run', srv: 'prod-eu-1', fh: 'db-snapshot-2026-08-3', ft: '1.tar.gz', dh: '/volume1/media/downloads/sftp-rel', dt: 'ay', pct: 62, size: '2.6 GB of 4.2 GB', speed: '18.4 MB/s', eta: '3m 12s' });
+    const r2 = J({ st: 'run', srv: 'backup-archive', fh: 'archive-2026/week-3', ft: '5', dh: '/volume1/media/downloads/archi', dt: 've', pct: 24, size: '410 MB of 1.7 GB', speed: '9.1 MB/s', eta: '5m 40s' });
+    const q = (n, ft, pos, srv) => J({ st: 'queued', srv: srv || 'prod-eu-1', fh: n, ft, pos: 'position ' + pos + ' of 3', size: '1.1 GB', dh: '/volume1/media/downloads/sftp-rel', dt: 'ay' });
+    const q1 = q('nightly-2026-09-0', '1.sql.gz', 1);
+    const q2 = q('access-log-2026-0', '8.tar.zst', 2);
+    const q3 = q('quarterly/2026-Q2-repor', 'ts', 3);
+    const fail = J({ st: 'failed', srv: 'prod-eu-1', fh: 'ledger-export-q', ft: '2.csv', dh: '/volume1/media/downloads/sftp-rel', dt: 'ay', pct: 8, size: '64 MB of 812 MB', err: 'sftp: permission denied (open /srv/exports/ledger-export-q2.csv)' });
+    const h = (st, n, srv, dh, dt, size, dur, when, err) => {
+      const p = PILL[st];
+      return { st, pill: p[0], pc: p[1], pbg: p[2], pbd: p[3], n, srv, dh, dt, size, dur, when, err, chev: err ? '\u25B4' : '' };
+    };
+    const history = [
+      h('done', 'db-snapshot-2026-08-30.tar.gz', 'prod-eu-1', '/volume1/media/downloads/sftp-rel', 'ay', '4.1 GB', '6m 02s', 'Today 04:11'),
+      h('failed', 'ledger-export-q2.csv', 'prod-eu-1', '/volume1/media/downloads/sftp-rel', 'ay', '812 MB', '0m 09s', 'Today 03:58', 'sftp: permission denied (open /srv/exports/ledger-export-q2.csv)\nssh: channel 3 closed by remote host\nrelay: giving up after 3 attempts'),
+      h('done', '2026-Q2-reports', 'backup-archive', '/volume1/media/documents/quarterl', 'y', '2.4 GB', '4m 18s', 'Yesterday 21:40'),
+      h('cancelled', 'vendor-feed-full.tar', 'vendor-dropbox', '/volume1/media/downloads/vend', 'or', '18.2 GB', '12m 44s', 'Yesterday 18:02'),
+      h('done', 'checksums.sha256', 'prod-eu-1', '/volume1/media/downloads/sftp-rel', 'ay', '48 KB', '0m 01s', '02 Sep 11:20'),
+      h('done', 'access-log-2026-07.tar.zst', 'prod-eu-1', '/volume1/media/logs/archi', 've', '331 MB', '1m 07s', '01 Sep 09:15')
+    ];
+    return {
+      remote, dest, servers, skel: [1, 2, 3, 4, 5, 6, 7, 8, 9], history,
+      jobOne: [r1], jobs5: [r1, r2, q1, q2, q3], jobsFail: [fail, r1, q1], jobsDesk: [r1, r2, fail, q1, q2]
+    };
+  }
+}
+</script>
+</body>
+</html>

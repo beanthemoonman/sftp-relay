@@ -1,0 +1,17 @@
+services:
+  relay:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: sftp-relay:latest
+    container_name: sftp-relay
+    restart: unless-stopped
+    ports:
+      - "8088:80"
+    env_file: .env
+    volumes:
+      - relay-data:/data
+      - ${NAS_SSH_KEY_PATH_HOST:-./nas_key}:/keys/nas_key:ro
+
+volumes:
+  relay-data:

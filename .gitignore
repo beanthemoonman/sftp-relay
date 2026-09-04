@@ -1,0 +1,41 @@
+# --- Build artifacts ---
+/relay
+/relay.exe
+*.exe
+*.test
+*.out
+
+# --- Go ---
+coverage.out
+coverage.html
+vendor/
+
+# --- IDE / editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- AI assistants ---
+.junie/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Local environment / secrets ---
+.env
+.env.*
+!.env.example
+deploy/.env
+
+# --- Runtime data / SQLite ---
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+relay-data/
+data/
+/keys/
+nas_key

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="flex:none;width:196px;background:#191b1e;border-right:1px solid #2b2f34;display:flex;flex-direction:column;padding:14px 0">
+<div style="padding:0 14px 14px;font:600 12px/1 ui-monospace,Menlo,monospace;color:#8b9196;letter-spacing:.06em">SFTP-RELAY</div>
+<sc-for list="{{ items }}" as="it" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;gap:9px;height:34px;padding:0 14px;background:{{ it.bg }}">
+<div style="width:13px;height:13px;border-radius:3px;border:1.5px solid {{ it.c }};flex:none"></div>
+<span style="font:400 13px/1 Helvetica,Arial,sans-serif;color:{{ it.c }};flex:1">{{ it.label }}</span>
+<sc-if value="{{ it.badge }}" hint-placeholder-val="{{ false }}"><div style="min-width:18px;height:16px;padding:0 5px;box-sizing:border-box;border-radius:8px;background:#3f8fd0;color:#0e1114;font:600 10px/16px ui-monospace,Menlo,monospace;text-align:center">{{ it.badge }}</div></sc-if>
+</div>
+</sc-for>
+<div style="flex:1"></div>
+<div style="margin:0 14px;padding:9px 10px;border:1px solid #2b2f34;border-radius:5px;display:flex;align-items:center;gap:7px">
+<div style="width:7px;height:7px;border-radius:4px;background:{{ dot }};flex:none"></div>
+<span style="font:400 10px/1.3 ui-monospace,Menlo,monospace;color:#8b9196">{{ lab }}</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:196,&quot;height&quot;:600},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Browse&quot;,&quot;Queue&quot;,&quot;History&quot;,&quot;Servers&quot;,&quot;Settings&quot;],&quot;default&quot;:&quot;Browse&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;badge&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;tsType&quot;:&quot;number&quot;},&quot;sse&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;down&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active || 'Browse';
+    const badge = this.props.badge;
+    const down = this.props.sse === 'down';
+    return {
+      dot: down ? '#c9605a' : '#5aa06f',
+      lab: down ? 'event stream down' : 'event stream live',
+      items: ['Browse', 'Queue', 'History', 'Servers', 'Settings'].map(label => ({
+        label,
+        c: label === active ? '#e6e8ea' : '#7c8287',
+        bg: label === active ? '#22262a' : 'transparent',
+        badge: label === 'Queue' ? badge : false
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="flex:none;display:flex;border-top:1px solid #2b2f34;background:#191b1e">
+<sc-for list="{{ items }}" as="it" hint-placeholder-count="4">
+<div style="flex:1;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;position:relative">
+<div style="width:15px;height:15px;border-radius:3px;border:1.5px solid {{ it.c }}"></div>
+<span style="font:400 10px/1 Helvetica,Arial,sans-serif;color:{{ it.c }}">{{ it.label }}</span>
+<sc-if value="{{ it.badge }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:10px;left:50%;margin-left:6px;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:8px;background:#3f8fd0;color:#0e1114;font:600 10px/16px ui-monospace,Menlo,monospace;text-align:center">{{ it.badge }}</div></sc-if>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:375,&quot;height&quot;:56},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Browse&quot;,&quot;Queue&quot;,&quot;History&quot;,&quot;Settings&quot;],&quot;default&quot;:&quot;Browse&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;badge&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active || 'Browse';
+    const badge = this.props.badge;
+    return {
+      items: ['Browse', 'Queue', 'History', 'Settings'].map(label => ({
+        label,
+        c: label === active ? '#e6e8ea' : '#6d7378',
+        badge: label === 'Queue' ? badge : false
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>
