@@ -134,12 +134,15 @@ func scanJob(row scanner) (Job, error) {
 	return j, err
 }
 
-// ListJobs returns jobs newest first; an empty status means all statuses.
-func (d *DB) ListJobs(ctx context.Context, status string, limit int) ([]Job, error) {
+// ListJobs returns jobs newest first; an empty status means all statuses and a
+// zero cursor means the first page. The cursor is the last id of the previous
+// page, which is stable under concurrent inserts in a way OFFSET is not.
+func (d *DB) ListJobs(ctx context.Context, status string, limit int, cursor int64) ([]Job, error) {
 	q := `SELECT ` + jobCols + ` FROM jobs AS j
 		INNER JOIN servers AS s ON s.id = j.server_id
-		WHERE (? = '' OR j.status = ?) ORDER BY j.id DESC LIMIT ?`
-	rows, err := d.QueryContext(ctx, q, status, status, limit)
+		WHERE (? = '' OR j.status = ?) AND (? = 0 OR j.id < ?)
+		ORDER BY j.id DESC LIMIT ?`
+	rows, err := d.QueryContext(ctx, q, status, status, cursor, cursor, limit)
 	if err != nil {
 		return nil, fmt.Errorf("db: list jobs: %w", err)
 	}
@@ -301,4 +304,78 @@ func (d *DB) SetServerHostKey(ctx context.Context, id int64, hostKey string) err
 		return fmt.Errorf("db: set server %d host key: %w", id, err)
 	}
 	return affected(res, fmt.Sprintf("server %d", id))
+}
+
+// SetJobTotal records the pre-computed byte count for a job.
+func (d *DB) SetJobTotal(ctx context.Context, id, total int64) error {
+	res, err := d.ExecContext(ctx, `UPDATE jobs SET total_bytes = ? WHERE id = ?`, total, id)
+	if err != nil {
+		return fmt.Errorf("db: set job %d total: %w", id, err)
+	}
+	return affected(res, fmt.Sprintf("job %d", id))
+}
+
+// RunnableJobs returns the oldest jobs waiting for a worker. An interrupted job
+// is as runnable as a queued one — lftp resumes it rather than restarting it.
+func (d *DB) RunnableJobs(ctx context.Context, limit int) ([]Job, error) {
+	q := `SELECT ` + jobCols + ` FROM jobs AS j
+		INNER JOIN servers AS s ON s.id = j.server_id
+		WHERE j.status IN ('queued', 'interrupted') ORDER BY j.id LIMIT ?`
+	rows, err := d.QueryContext(ctx, q, limit)
+	if err != nil {
+		return nil, fmt.Errorf("db: runnable jobs: %w", err)
+	}
+	defer rows.Close()
+	var out []Job
+	for rows.Next() {
+		j, err := scanJob(rows)
+		if err != nil {
+			return nil, fmt.Errorf("db: scan runnable job: %w", err)
+		}
+		out = append(out, j)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("db: runnable jobs: %w", err)
+	}
+	return out, nil
+}
+
+// InterruptRunningJobs is the restart recovery step: anything the previous
+// process left in running cannot still be running, so it becomes interrupted
+// and the scheduler picks it up again.
+func (d *DB) InterruptRunningJobs(ctx context.Context) (int64, error) {
+	res, err := d.ExecContext(ctx, `UPDATE jobs SET status = 'interrupted',
+		error = 'interrupted by a relay restart; resuming' WHERE status = 'running'`)
+	if err != nil {
+		return 0, fmt.Errorf("db: interrupt running jobs: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("db: interrupt running jobs: %w", err)
+	}
+	return n, nil
+}
+
+// DeleteJob removes a job and its log.
+func (d *DB) DeleteJob(ctx context.Context, id int64) error {
+	res, err := d.ExecContext(ctx, `DELETE FROM jobs WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("db: delete job %d: %w", id, err)
+	}
+	return affected(res, fmt.Sprintf("job %d", id))
+}
+
+// PurgeJobs drops finished jobs older than days. Live jobs are never touched.
+func (d *DB) PurgeJobs(ctx context.Context, days int) (int64, error) {
+	res, err := d.ExecContext(ctx, `DELETE FROM jobs
+		WHERE status IN ('done', 'failed', 'cancelled')
+		  AND created_at < datetime('now', ?)`, fmt.Sprintf("-%d days", days))
+	if err != nil {
+		return 0, fmt.Errorf("db: purge jobs older than %d days: %w", days, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("db: purge jobs older than %d days: %w", days, err)
+	}
+	return n, nil
 }

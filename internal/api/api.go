@@ -18,6 +18,8 @@ import (
 
 	"sftp-relay/internal/config"
 	"sftp-relay/internal/db"
+	"sftp-relay/internal/events"
+	"sftp-relay/internal/jobs"
 	"sftp-relay/internal/nas"
 	"sftp-relay/internal/sftpclient"
 )
@@ -30,13 +32,16 @@ type API struct {
 	store *db.DB
 	pool  *sftpclient.Pool
 	nas   *nas.Client
+	jobs  *jobs.Manager
+	hub   *events.Hub
 	cfg   config.Config
 }
 
 // New returns the fully-routed handler. /api/health is the only unauthenticated
 // route, so container healthchecks need no credentials.
-func New(store *db.DB, pool *sftpclient.Pool, nasClient *nas.Client, cfg config.Config) http.Handler {
-	a := &API{store: store, pool: pool, nas: nasClient, cfg: cfg}
+func New(store *db.DB, pool *sftpclient.Pool, nasClient *nas.Client,
+	manager *jobs.Manager, hub *events.Hub, cfg config.Config) http.Handler {
+	a := &API{store: store, pool: pool, nas: nasClient, jobs: manager, hub: hub, cfg: cfg}
 
 	r := chi.NewRouter()
 	r.Get("/api/health", a.health)
@@ -53,6 +58,16 @@ func New(store *db.DB, pool *sftpclient.Pool, nasClient *nas.Client, cfg config.
 
 		r.Get("/api/nas/browse", a.browseNAS)
 		r.Post("/api/nas/mkdir", a.mkdirNAS)
+
+		r.Get("/api/jobs", a.listJobs)
+		r.Post("/api/jobs", a.createJobs)
+		r.Get("/api/jobs/{id}", a.getJob)
+		r.Delete("/api/jobs/{id}", a.deleteJob)
+		r.Post("/api/jobs/{id}/cancel", a.cancelJob)
+		r.Post("/api/jobs/{id}/retry", a.retryJob)
+		r.Get("/api/jobs/{id}/log", a.jobLog)
+
+		r.Get("/api/events", a.events)
 
 		r.Get("/api/settings", a.getSettings)
 		r.Put("/api/settings", a.putSettings)
@@ -385,6 +400,10 @@ func writeErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, db.ErrNotFound):
 		writeStatus(w, http.StatusNotFound, err)
 	case errors.Is(err, nas.ErrOutsideRoots), errors.Is(err, nas.ErrNoRoots):
+		writeStatus(w, http.StatusBadRequest, err)
+	case errors.Is(err, jobs.ErrIllegalTransition):
+		writeStatus(w, http.StatusConflict, err)
+	case errors.Is(err, nas.ErrNoHostKey), errors.Is(err, nas.ErrNoSSHPass):
 		writeStatus(w, http.StatusBadRequest, err)
 	case errors.Is(err, nas.ErrNotConfigured):
 		writeStatus(w, http.StatusServiceUnavailable, err)

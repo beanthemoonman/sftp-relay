@@ -1,0 +1,7 @@
+Total: 2 directories, 4 files, 0 symlinks
+Transferring file `notes.txt'
+`notes.txt', got 0 of 0 (100%)
+mkdir: Access failed: File exists (/volume1/media/tree/sub)
+Transferring file `café.bin'
+`café.bin', got 524288 of 1048576 (50%) 1.00 MiB/s eta:1s`café.bin', got 1048576 of 1048576 (100%) 2.00 MiB/s4 files transferred
+1048576 bytes transferred in 2 seconds (512.0K/s)

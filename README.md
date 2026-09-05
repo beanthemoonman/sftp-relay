@@ -9,10 +9,11 @@ the build order lives in [plan_to_implement.md](plan_to_implement.md).
 
 ## Status
 
-Phases 0–4 are done: the container runs, persists to SQLite, requires basic auth,
-manages SFTP servers and browses them, and browses the NAS destination tree with
-an allow-listed path validator. Transfers themselves (Phase 5 onward) are not
-built yet, and there is no UI — everything below is driven with `curl`.
+Phases 0–8 are done: the container runs, persists to SQLite, requires basic auth,
+manages SFTP servers and browses them, browses the NAS destination tree with an
+allow-listed path validator, and runs real transfers — a worker pool drives `lftp`
+on the NAS, parses its output for progress, and streams live updates over SSE.
+There is no UI yet (Phase 9), so everything below is driven with `curl`.
 
 ## Running it
 
@@ -48,6 +49,11 @@ GET    /api/servers                      POST   /api/servers
 PUT    /api/servers/{id}                 DELETE /api/servers/{id}
 POST   /api/servers/{id}/test            GET    /api/servers/{id}/browse?path=
 GET    /api/nas/browse?path=             POST   /api/nas/mkdir
+GET    /api/jobs?status=&limit=&cursor=  POST   /api/jobs
+GET    /api/jobs/{id}                    DELETE /api/jobs/{id}
+POST   /api/jobs/{id}/cancel             POST   /api/jobs/{id}/retry
+GET    /api/jobs/{id}/log
+GET    /api/events                       server-sent events
 GET    /api/settings                     PUT    /api/settings
 ```
 
@@ -66,6 +72,27 @@ curl -s $A -X POST $R/api/servers/1/test
 curl -s $A "$R/api/servers/1/browse?path=/downloads"
 ```
 
+`POST /api/jobs` takes a batch: one server, many items, one destination. Set
+`is_dir` from the browse listing — it decides between `pget` and `mirror`.
+
+```sh
+curl -s $A -X POST $R/api/jobs -d '{
+  "server_id":1, "dest_path":"/volume1/media/films",
+  "items":[{"path":"/downloads/a.mkv","is_dir":false},
+           {"path":"/downloads/season 1","is_dir":true}]}'
+
+curl -s $A "$R/api/jobs?status=running"
+curl -s $A -X POST $R/api/jobs/3/cancel
+curl -s $A -X POST $R/api/jobs/3/retry      # clones the job; lftp resumes
+curl -s $A "$R/api/jobs/3/log"
+curl -sN $A $R/api/events                    # snapshot, then live deltas
+```
+
+`/api/events` sends a full `snapshot` on connect and then `job.created`,
+`job.progress`, `job.done`, `job.failed` and `job.log` deltas. Progress is
+coalesced to at most one event per job per second, and a client that cannot keep
+up is dropped rather than buffered — it reconnects and resyncs from the snapshot.
+
 ## Settings
 
 Settings live in the database, not `.env`, and are changed at runtime:
@@ -82,6 +109,7 @@ curl -s $A -X PUT $R/api/settings -d '{
 | `nas_host_key` | captured | Pinned on first connect; clear it to re-trust a host |
 | `nas_tmp` | `/tmp` | Where per-job workspaces are created on the NAS |
 | `lftp_path` | probed | Absolute path of `lftp`, resolved at startup |
+| `sshpass_path` | probed | Absolute path of `sshpass`; only needed for password-authenticated remote servers |
 | `allowed_dest_roots` | empty | Comma or newline separated. **Empty means no destination is valid** — nothing can be written until you set this. |
 | `concurrency` | `2` | Concurrent jobs |
 | `segments` | `4` | lftp segments per transfer |
@@ -127,7 +155,12 @@ If any of that is unacceptable for your network, this is not the tool for you.
    locations (`/opt/bin`, `/usr/local/bin`, `/usr/bin`, `/volume1/@entware/opt/bin`) —
    and caches the absolute path, because non-interactive SSH on Synology has a very
    thin `PATH`. If it is not found, the log says so with the install command.
-3. **Allowed roots.** Set `allowed_dest_roots` before anything can be written. Until
+3. **sshpass — only for password-authenticated remote servers.** `lftp` drives
+   `sftp://` by shelling out to `ssh`, and `ssh` cannot be given a password
+   non-interactively. If any remote server uses password authentication, install
+   `sshpass` on the NAS (`opkg install sshpass`); the relay probes for it the same
+   way it probes for `lftp`. Key authentication needs none of this and is preferred.
+4. **Allowed roots.** Set `allowed_dest_roots` before anything can be written. Until
    then every destination is rejected, deliberately.
-4. **Ownership.** Files land on the NAS owned by the SSH user you configured. If that
+5. **Ownership.** Files land on the NAS owned by the SSH user you configured. If that
    is not the user your media apps run as, fix it there rather than in the relay.

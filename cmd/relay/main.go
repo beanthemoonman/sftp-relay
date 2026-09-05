@@ -15,6 +15,8 @@ import (
 	"sftp-relay/internal/api"
 	"sftp-relay/internal/config"
 	"sftp-relay/internal/db"
+	"sftp-relay/internal/events"
+	"sftp-relay/internal/jobs"
 	"sftp-relay/internal/nas"
 	"sftp-relay/internal/sftpclient"
 )
@@ -58,11 +60,18 @@ func run() error {
 	nasClient := nas.New(database, cfg.NASSSHKeyPath, 15*time.Second)
 	defer nasClient.Close()
 
-	go probeLftp(ctx, nasClient)
+	go probeTools(ctx, nasClient)
+
+	hub := events.NewHub()
+	manager := jobs.New(database, pool, nasClient, hub)
+	if err := manager.Start(ctx); err != nil {
+		return err
+	}
+	defer manager.Stop()
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           api.New(database, pool, nasClient, cfg),
+		Handler:           api.New(database, pool, nasClient, manager, hub, cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -85,16 +94,26 @@ func run() error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// probeLftp resolves lftp's absolute path on the NAS and caches it. It runs in
-// the background: a NAS that is off or unconfigured must not stop the UI from
-// coming up, but the failure is logged loudly with the remediation.
-func probeLftp(ctx context.Context, c *nas.Client) {
+// probeTools resolves the absolute paths of lftp and sshpass on the NAS and
+// caches them. It runs in the background: a NAS that is off or unconfigured
+// must not stop the UI from coming up, but the failure is logged loudly with
+// the remediation.
+func probeTools(ctx context.Context, c *nas.Client) {
 	probeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	switch _, err := c.ProbeLftp(probeCtx); {
 	case errors.Is(err, nas.ErrNotConfigured):
-		slog.Info("NAS is not configured yet; skipping the lftp probe")
+		slog.Info("NAS is not configured yet; skipping the tool probes")
+		return
 	case err != nil:
 		slog.Error("lftp probe failed; transfers will not run until this is fixed", "err", err)
+	}
+	// sshpass is only needed for password-authenticated remote servers, so its
+	// absence is recorded silently and reported when such a job is queued.
+	if path, err := c.ProbeSSHPass(probeCtx); err != nil {
+		slog.Debug("sshpass probe failed", "err", err)
+	} else if path == "" {
+		slog.Info("sshpass is not installed on the NAS; password-authenticated " +
+			"remote servers will not transfer until it is")
 	}
 }

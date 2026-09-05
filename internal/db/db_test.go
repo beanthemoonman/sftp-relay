@@ -129,14 +129,14 @@ func TestServerAndJobRoundTrip(t *testing.T) {
 		t.Fatalf("job round trip mismatch: %+v", j)
 	}
 
-	running, err := d.ListJobs(ctx, "running", 10)
+	running, err := d.ListJobs(ctx, "running", 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(running) != 1 {
 		t.Errorf("running jobs = %d, want 1", len(running))
 	}
-	if done, _ := d.ListJobs(ctx, "done", 10); len(done) != 0 {
+	if done, _ := d.ListJobs(ctx, "done", 10, 0); len(done) != 0 {
 		t.Errorf("done jobs = %d, want 0", len(done))
 	}
 
@@ -231,7 +231,7 @@ func TestClosedDBErrors(t *testing.T) {
 		"CreateServer":   func() error { _, err := d.CreateServer(ctx, Server{AuthType: "key"}); return err },
 		"UpdateServer":   func() error { return d.UpdateServer(ctx, Server{ID: 1, AuthType: "key"}) },
 		"DeleteServer":   func() error { return d.DeleteServer(ctx, 1) },
-		"ListJobs":       func() error { _, err := d.ListJobs(ctx, "", 10); return err },
+		"ListJobs":       func() error { _, err := d.ListJobs(ctx, "", 10, 0); return err },
 		"GetJob":         func() error { _, err := d.GetJob(ctx, 1); return err },
 		"CreateJob":      func() error { _, err := d.CreateJob(ctx, Job{Kind: "file", Status: "queued"}); return err },
 		"SetJobStatus":   func() error { return d.SetJobStatus(ctx, 1, "done", "", nil) },
@@ -251,5 +251,164 @@ func TestClosedDBErrors(t *testing.T) {
 func TestOpenRejectsUnusablePath(t *testing.T) {
 	if _, err := Open(context.Background(), t.TempDir()); err == nil {
 		t.Fatal("opening a directory as a database should fail")
+	}
+}
+
+// seedQueue creates a server and one job per status, returning their ids.
+func seedQueue(t *testing.T, d *DB, statuses ...string) (int64, []int64) {
+	t.Helper()
+	ctx := context.Background()
+	sid, err := d.CreateServer(ctx, Server{
+		Name: "src", Host: "h", Port: 22, Username: "u", AuthType: "key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]int64, 0, len(statuses))
+	for _, status := range statuses {
+		id, err := d.CreateJob(ctx, Job{
+			ServerID: sid, Kind: "file", RemotePath: "/a", DestPath: "/b", Status: status,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	return sid, ids
+}
+
+func TestRunnableJobsIncludesInterruptedOnes(t *testing.T) {
+	d, _ := open(t)
+	ctx := context.Background()
+	_, ids := seedQueue(t, d, "done", "queued", "running", "interrupted", "cancelled", "queued")
+
+	got, err := d.RunnableJobs(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []int64{ids[1], ids[3], ids[5]}
+	if len(got) != len(want) {
+		t.Fatalf("runnable = %d jobs, want %d: %+v", len(got), len(want), got)
+	}
+	for i, j := range got {
+		if j.ID != want[i] {
+			t.Errorf("position %d = job %d, want %d (oldest first)", i, j.ID, want[i])
+		}
+		if j.ServerName != "src" {
+			t.Errorf("job %d has no joined server name", j.ID)
+		}
+	}
+	if limited, err := d.RunnableJobs(ctx, 1); err != nil || len(limited) != 1 {
+		t.Errorf("limit 1 returned %d jobs, err = %v", len(limited), err)
+	}
+	if none, err := d.RunnableJobs(ctx, 0); err != nil || len(none) != 0 {
+		t.Errorf("limit 0 returned %d jobs, err = %v", len(none), err)
+	}
+}
+
+func TestInterruptRunningJobs(t *testing.T) {
+	d, _ := open(t)
+	ctx := context.Background()
+	_, ids := seedQueue(t, d, "running", "running", "queued", "done")
+
+	n, err := d.InterruptRunningJobs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("interrupted %d jobs, want 2", n)
+	}
+	for _, id := range ids[:2] {
+		j, err := d.GetJob(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if j.Status != "interrupted" || j.Error == "" {
+			t.Errorf("job %d = %q / %q", id, j.Status, j.Error)
+		}
+	}
+	if j, _ := d.GetJob(ctx, ids[2]); j.Status != "queued" {
+		t.Errorf("a queued job was disturbed: %q", j.Status)
+	}
+	// Running it again on a clean queue changes nothing.
+	if n, err := d.InterruptRunningJobs(ctx); err != nil || n != 0 {
+		t.Errorf("second sweep: %d, %v", n, err)
+	}
+}
+
+func TestDeleteJobAndPurge(t *testing.T) {
+	d, _ := open(t)
+	ctx := context.Background()
+	_, ids := seedQueue(t, d, "done", "failed", "cancelled", "queued", "running")
+
+	if err := d.DeleteJob(ctx, ids[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.GetJob(ctx, ids[0]); !errors.Is(err, ErrNotFound) {
+		t.Errorf("deleted job still present: %v", err)
+	}
+	if err := d.DeleteJob(ctx, 4040); !errors.Is(err, ErrNotFound) {
+		t.Errorf("DeleteJob on a missing row: %v", err)
+	}
+
+	// Nothing is old enough yet.
+	if n, err := d.PurgeJobs(ctx, 30); err != nil || n != 0 {
+		t.Fatalf("premature purge removed %d rows, err = %v", n, err)
+	}
+	if _, err := d.ExecContext(ctx,
+		`UPDATE jobs SET created_at = datetime('now', '-90 days')`); err != nil {
+		t.Fatal(err)
+	}
+	n, err := d.PurgeJobs(ctx, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("purged %d rows, want the two remaining finished ones", n)
+	}
+	for _, id := range ids[3:] {
+		if _, err := d.GetJob(ctx, id); err != nil {
+			t.Errorf("live job %d was purged: %v", id, err)
+		}
+	}
+}
+
+func TestSetJobTotal(t *testing.T) {
+	d, _ := open(t)
+	ctx := context.Background()
+	_, ids := seedQueue(t, d, "queued")
+
+	if err := d.SetJobTotal(ctx, ids[0], 4096); err != nil {
+		t.Fatal(err)
+	}
+	if j, _ := d.GetJob(ctx, ids[0]); j.TotalBytes != 4096 {
+		t.Errorf("total_bytes = %d, want 4096", j.TotalBytes)
+	}
+	if err := d.SetJobTotal(ctx, 4040, 1); !errors.Is(err, ErrNotFound) {
+		t.Errorf("SetJobTotal on a missing row: %v", err)
+	}
+}
+
+func TestListJobsPagesByCursor(t *testing.T) {
+	d, _ := open(t)
+	ctx := context.Background()
+	_, ids := seedQueue(t, d, "queued", "queued", "queued", "queued")
+
+	first, err := d.ListJobs(ctx, "", 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 2 || first[0].ID != ids[3] || first[1].ID != ids[2] {
+		t.Fatalf("first page = %+v", first)
+	}
+	second, err := d.ListJobs(ctx, "", 2, first[1].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second) != 2 || second[0].ID != ids[1] {
+		t.Fatalf("second page = %+v", second)
+	}
+	if last, _ := d.ListJobs(ctx, "", 2, second[1].ID); len(last) != 0 {
+		t.Errorf("page past the end = %+v", last)
 	}
 }

@@ -1,0 +1,3 @@
+lftp: connecting...
+cd: Access failed: No such file (/nope)
+Fatal error: max-retries exceeded

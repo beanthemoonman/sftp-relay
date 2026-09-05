@@ -15,6 +15,8 @@ import (
 
 	"sftp-relay/internal/config"
 	"sftp-relay/internal/db"
+	"sftp-relay/internal/events"
+	"sftp-relay/internal/jobs"
 	"sftp-relay/internal/nas"
 	"sftp-relay/internal/sftpclient"
 )
@@ -25,6 +27,12 @@ const (
 )
 
 func newTestAPI(t *testing.T) (http.Handler, *db.DB) {
+	h, store, _ := newTestAPIFull(t)
+	return h, store
+}
+
+// newTestAPIFull also hands back the event hub, for the SSE tests.
+func newTestAPIFull(t *testing.T) (http.Handler, *db.DB, *events.Hub) {
 	t.Helper()
 	store, err := db.Open(context.Background(), filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
@@ -37,8 +45,10 @@ func newTestAPI(t *testing.T) (http.Handler, *db.DB) {
 		nasClient.Close()
 		store.Close()
 	})
-	h := New(store, pool, nasClient, config.Config{AuthUser: user, AuthPass: pass})
-	return h, store
+	hub := events.NewHub()
+	manager := jobs.New(store, pool, nasClient, hub)
+	h := New(store, pool, nasClient, manager, hub, config.Config{AuthUser: user, AuthPass: pass})
+	return h, store, hub
 }
 
 func do(t *testing.T, h http.Handler, method, target, body string, auth bool) *httptest.ResponseRecorder {
@@ -79,6 +89,14 @@ func TestAuthGuardsEveryOtherRoute(t *testing.T) {
 		{http.MethodGet, "/api/servers/1/browse"},
 		{http.MethodGet, "/api/nas/browse"},
 		{http.MethodPost, "/api/nas/mkdir"},
+		{http.MethodGet, "/api/jobs"},
+		{http.MethodPost, "/api/jobs"},
+		{http.MethodGet, "/api/jobs/1"},
+		{http.MethodDelete, "/api/jobs/1"},
+		{http.MethodPost, "/api/jobs/1/cancel"},
+		{http.MethodPost, "/api/jobs/1/retry"},
+		{http.MethodGet, "/api/jobs/1/log"},
+		{http.MethodGet, "/api/events"},
 		{http.MethodGet, "/api/settings"},
 		{http.MethodPut, "/api/settings"},
 	}

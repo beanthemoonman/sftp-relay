@@ -96,14 +96,38 @@ Command shapes:
 
 - File: `pget -n {segments} -c "remote" -o "local"`
 - Directory: `mirror --continue --parallel={n} --use-pget-n={segments} "remote" "local"`
-- Prelude: `set cmd:fail-exit yes; set net:max-retries 3; set xfer:use-temp-file yes;`
-  `set sftp:connect-program "ssh -a -x -i {keypath} -o StrictHostKeyChecking=yes"`
+- Prelude: `set cmd:fail-exit yes; set net:max-retries 3; set net:timeout 30;`
+  `set xfer:use-temp-file yes; set xfer:clobber yes; set sftp:auto-confirm no;`
+  `set sftp:connect-program "ssh -a -x -o StrictHostKeyChecking=yes -o UserKnownHostsFile={ws}/known_hosts -o BatchMode=yes -p {port} -i {ws}/key -o IdentitiesOnly=yes"`
+
+The remote server's pinned host key is written into the workspace as a `known_hosts`
+file, so `StrictHostKeyChecking=yes` on the NAS enforces the same pin the Pi does.
+
+**Password-authenticated remote servers need `sshpass` on the NAS.** lftp reaches
+`sftp://` by spawning `ssh`, and ssh will not take a password from anywhere we can
+reach non-interactively. The connect-program becomes `sshpass -f {ws}/pass ssh …`.
+`sshpass_path` is probed at startup like `lftp_path`; when it is missing, queueing
+such a job fails with the `opkg install sshpass` remediation. Key authentication
+avoids the dependency and is the preferred setup. A passphrase-protected key is
+decrypted on the Pi and written to the workspace unencrypted — ssh on the NAS cannot
+be prompted — so the passphrase itself never leaves the Pi.
 
 **Cancellation:** closing the SSH session does not reliably kill `lftp`. The job writes
 its PID to a file; cancel opens a fresh exec and sends `TERM` to that PID.
 
-**Restart recovery:** on boot, any job in `running` is moved to `interrupted` and
-requeued. `pget -c` and `mirror --continue` resume rather than restart.
+**Restart recovery:** on boot, any job in `running` is moved to `interrupted`, and
+the scheduler treats `interrupted` as runnable alongside `queued` — so the status
+stays visible in the UI while the job resumes. `pget -c` and `mirror --continue`
+resume rather than restart. A stale-workspace sweep (`rm -rf $NAS_TMP/job-*`) also
+runs at boot, because a SIGKILL outruns the cleanup trap.
+
+**Scheduling:** a single loop ticks once per second, re-reads `concurrency` and
+starts as many waiting jobs as the setting allows. Re-reading every tick is what
+makes concurrency resizable at runtime without a restart.
+
+**State machine:** `internal/jobs` owns it. `done`, `failed` and `cancelled` are
+terminal — retry clones the row rather than reviving it, so history stays honest.
+Every status change goes through `jobs.Transition`.
 
 **Concurrency:** N concurrent jobs (config, default 2), each with M lftp segments
 (config, default 4). Both are DB settings, changeable at runtime.
@@ -117,8 +141,8 @@ requeued. `pget -c` and `mirror --continue` resume rather than restart.
   transferred_bytes, speed_bps, eta_seconds, exit_code, error, started_at, finished_at
 - `job_log` — job_id, ts, line (ring-buffered, capped per job)
 - `settings` — key/value: `nas_host`, `nas_user`, `nas_port`, `nas_host_key`,
-  `nas_tmp`, `lftp_path`, `allowed_dest_roots`, `concurrency`, `segments`,
-  `history_retention_days`
+  `nas_tmp`, `lftp_path`, `sshpass_path`, `allowed_dest_roots`, `concurrency`,
+  `segments`, `history_retention_days`
 
 Migrations are plain numbered `.sql` files applied in order at startup.
 

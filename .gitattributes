@@ -1,0 +1,3 @@
+# lftp output fixtures are byte-exact: they carry lone CR separators and
+# non-UTF-8 filenames that line-ending normalisation would destroy.
+internal/nas/testdata/** -text

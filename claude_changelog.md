@@ -86,3 +86,55 @@ Not done: still no run against a real remote SFTP server or the real Synology �
 exit criteria are recorded in the plan as passing against in-process servers only.
 `golangci-lint`, `gosec` and `govulncheck` remain uninstalled on this machine. The Pi
 deployment and the 24-hour soak are still outstanding from Phase 0.
+
+## Phases 5–8 — lftp execution, progress parsing, the queue, and SSE (2026-09-04)
+
+Built the whole transfer path: jobs now really run.
+
+- `internal/nas/lftp.go`: the ephemeral workspace and the one-shot exec. `render` is
+  a pure function producing every file plus the command, so the escaping, the script
+  shape and the "no credentials on a command line" rule are unit-testable without a
+  NAS. Files are chmodded before content is written. The remote server's pinned host
+  key becomes a `known_hosts` file so `StrictHostKeyChecking=yes` on the NAS enforces
+  the same pin the Pi does. `Cancel` TERMs the recorded PID, `Sweep` clears stale
+  workspaces at boot, `Size` measures the destination for the progress fallback.
+- Password-authenticated remote servers turned out to need `sshpass` on the NAS:
+  lftp reaches `sftp://` by spawning `ssh`, which cannot take a password
+  non-interactively. `sshpass_path` is probed and cached (migration `0003`), and a
+  job for such a server fails with the `opkg install sshpass` remediation rather than
+  hanging on a prompt. Key auth needs none of it. A passphrase-protected key is
+  decrypted on the Pi so the passphrase never reaches the NAS.
+- `internal/nas/progress.go`: the output parser. Each field is matched independently
+  because lftp's format drifts by version; fixtures for two versions live in
+  `internal/nas/testdata`.
+- `internal/jobs`: the state machine (terminal `done`/`failed`/`cancelled`, retry
+  clones rather than revives), the tracker (1 Hz coalescing, monotonic bytes,
+  10 s staleness before the destination-size fallback), and the manager — a
+  one-second scheduler tick that re-reads `concurrency`, which is what makes it
+  resizable at runtime. Restart recovery marks `running` as `interrupted` and treats
+  `interrupted` as runnable, so the status stays visible while the job resumes.
+- `internal/events`: the SSE hub. 64-event buffer per subscriber, slow subscribers
+  dropped rather than buffered, progress coalesced to one event per job per second.
+- `internal/api/jobs.go`: the jobs endpoints and `/api/events`. The stream sends a
+  full snapshot on connect and nothing is replayed; `X-Accel-Buffering: no` pairs
+  with the `proxy_buffering off` already in nginx.
+- `internal/db`: `SetJobTotal`, `RunnableJobs`, `InterruptRunningJobs`, `DeleteJob`,
+  `PurgeJobs`, and cursor paging on `ListJobs`.
+
+Testing seams rather than interfaces: the manager holds four function fields
+(`transfer`, `remoteSize`, `destSize`, `killRemote`, `sweep`) pointing at the real
+NAS and pool, which tests replace to drive whole job lifecycles over channels with
+no SSH server and no sleeps.
+
+Verified: `gofmt`/`go vet` clean, arm64 `CGO_ENABLED=0` build clean, `go test -race`
+clean in a linux container, three consecutive clean runs. Coverage `internal/...`
+85.8% total (api 83.3%, config 91.2%, db 80.4%, events 100%, jobs 84.7%, nas 87.0%,
+sftpclient 89.9%). The four packages held to 90%+ are there: `ParseProgress`,
+`CanTransition`/`Transition`/`Terminal`, `CheckPath`/`normalise`/`contained` and the
+whole events hub are all at 100%.
+
+Not done: no run against the real Synology or a real remote SFTP server; the
+container-restart-mid-transfer and two-tabs-plus-a-phone exit criteria are verified
+in unit form only and remain E2E/manual items. `golangci-lint`, `gosec` and
+`govulncheck` are still not installed on this machine. The Pi deployment and the
+24-hour soak are still outstanding from Phase 0.

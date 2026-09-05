@@ -149,69 +149,127 @@ null bytes, relative paths, the filesystem root and an empty allow-list. `CheckP
 
 ---
 
-## Phase 5 — lftp execution (the risky part — spike it first)
+## Phase 5 — lftp execution — **DONE (2026-09-04)**
 
 **Goal:** one hardcoded job transfers real bytes onto the NAS.
 
-- Ephemeral workspace: SFTP a `0600` key file and a POSIX-sh lftp script into
-  `$NAS_TMP/job-<id>/`
-- Generated script writes its PID to a pidfile and uses `trap` to remove the workspace
-  on any exit path
-- One-shot `ssh` exec per job; combined stdout/stderr streamed back
-- Command shapes for file (`pget -n -c`) and directory (`mirror --continue --parallel`)
-- Exit code propagated; stderr captured into `job_log`
+- [x] Ephemeral workspace: SFTP a `0600` key file and a POSIX-sh lftp script into
+  `$NAS_TMP/job-<id>/`. The directory is `0700`; every file is chmodded *before* its
+  content is written, so a credential is never briefly world-readable.
+- [x] Generated script writes lftp's PID (not the shell's) to a pidfile and uses
+  `trap cleanup EXIT INT TERM HUP` to remove the workspace on any ordinary exit path
+- [x] One-shot `ssh` exec per job; combined stdout/stderr streamed back, split on
+  `` as well as `
+` so lftp's in-place progress updates arrive as separate lines
+- [x] Command shapes for file (`pget -n -c`) and directory (`mirror --continue --parallel`)
+- [x] Exit code propagated; non-progress output captured into `job_log`
+- [x] The remote server's pinned host key is written into the workspace as a
+  `known_hosts` file, so `StrictHostKeyChecking=yes` on the NAS enforces the same pin
+- [x] `Sweep` removes stale `job-*` workspaces at startup — a SIGKILL outruns the trap
+- [x] Password-authenticated servers use `sshpass -f` as part of the connect-program,
+  probed and cached as `sshpass_path`; without it the job fails with the install
+  command rather than hanging on a prompt
 
 **Exit:** a file and a directory both land on the NAS with correct sizes, and the
 temp workspace is gone afterwards — including after a forced kill.
 
+**Exit test result:** passed against the fake NAS (in-process SSH + in-memory SFTP +
+canned exec), **not yet against the real Synology**. The workspace really is written
+over SFTP and the modes requested are asserted (dir `0700`, `cmds`/`key`/`known_hosts`
+`0600`, `run.sh` `0700`); exit codes propagate; a cancelled context aborts the stream.
+Workspace rendering is a pure function and is tested exhaustively: both command
+shapes, lftp and POSIX-sh quoting (spaces, quotes, backslashes, unicode, apostrophes),
+non-default ports in `known_hosts`, segment/parallel clamping, a passphrase-protected
+key being decrypted on the Pi, and six rejection paths. A dedicated test asserts the
+generated command line and the runner script contain **no** password or key material
+for both auth types. `rm -rf` of the workspace after a SIGKILL is the startup sweep's
+job and is verified only by the sweep test here; the real forced-kill case belongs to
+E2E.
+
 ---
 
-## Phase 6 — Progress parsing
+## Phase 6 — Progress parsing — **DONE (2026-09-04)**
 
 **Goal:** trustworthy percentage, speed and ETA.
 
-- Line scanner over the streamed output; regexes for lftp's transfer status lines
-- Reconcile against the pre-computed total from Phase 3
-- Fallback: if no parseable progress for ~10 s, poll destination size over SFTP every
-  5 s and derive progress from that
-- Coalesce to at most one update per job per second; keep in memory, flush to DB on
-  the same cadence
-- Parser unit tests against captured output samples from at least two lftp versions
+- [x] Line scanner over the streamed output; each field matched independently rather
+  than trying to match a whole line, because the format drifts between lftp versions
+- [x] Reconciled against the pre-computed total from Phase 3; a percentage with a
+  known total beats a per-file byte count during a mirror, and bytes never go backwards
+- [x] Fallback: if nothing parseable arrives for 10 s, poll the destination size over
+  SFTP every 5 s and derive progress from that
+- [x] Coalesced to at most one update per job per second, held in memory and flushed
+  to the DB on the same cadence
+- [x] Parser unit tests against captured output from two lftp versions
 
 **Exit:** progress advances monotonically and lands on 100% for both job kinds.
 
+**Exit test result:** passed. `ParseProgress` is at 100% statement coverage over a
+14-case table plus three captured fixtures in `internal/nas/testdata`: the 4.8-era
+`at N (P%)` form with `` updates, the 4.9-era `got N of M` form with interleaved
+stderr, a zero-byte file, a non-UTF-8 filename, and output that yields no parseable
+progress at all. Both transfer fixtures reach 100% and end on a summary line; the
+unparseable one yields nothing, which is exactly when the size-poll fallback takes
+over. The tracker's coalescing, monotonicity, staleness threshold and forced final
+flush are asserted with a hand-cranked clock — no sleeps anywhere.
+
 ---
 
-## Phase 7 — Queue and lifecycle
+## Phase 7 — Queue and lifecycle — **DONE (2026-09-04)**
 
 **Goal:** a real job system.
 
-- Worker pool sized from settings, resizable at runtime without restart
-- State machine: `queued → running → done|failed|cancelled`, plus `interrupted`
-- `POST /api/jobs` accepts a batch (one server, many items, one destination); expands
-  into individual job rows
-- Cancel: fresh SSH exec sending `TERM` to the recorded PID, then cleanup
-- Retry: clones the job row, relies on `--continue`/`-c` to resume
-- Startup recovery: `running` → `interrupted` → requeued
-- History retention sweep on a ticker
+- [x] Worker pool sized from settings, resizable at runtime without restart: a
+  one-second scheduler tick re-reads `concurrency` every time
+- [x] State machine: `queued → running → done|failed|cancelled`, plus `interrupted`
+  and `paused`. `done`, `failed` and `cancelled` are terminal.
+- [x] `POST /api/jobs` accepts a batch (one server, many items, one destination) and
+  expands into individual job rows; the destination goes through `nas.CheckPath`
+- [x] Cancel: the row is marked cancelled first, then `TERM` is sent to the recorded
+  PID on the NAS and the job context is cancelled, so the worker cannot overwrite it
+- [x] Retry: clones the job row, relying on `--continue`/`-c` to resume
+- [x] Startup recovery: `running` → `interrupted`, and `interrupted` is runnable
+- [x] History retention sweep on a ticker
 
 **Exit:** queue five jobs, cancel one mid-flight, restart the container, and watch the
 interrupted job resume rather than restart.
 
+**Exit test result:** passed in unit form, **not yet as a container restart**. The
+state machine asserts all 49 from/to pairs against a hand-restated table, plus unknown
+statuses and self-transitions, at 100% coverage. The manager is driven through a
+channel-synchronised harness with the NAS and SFTP seams replaced: completion, a
+non-zero exit code, a transfer error, FIFO ordering with peak concurrency pinned to
+the configured 1, cancel of both a running and a queued job (with the NAS `TERM`
+asserted), cancel of a finished job rejected, retry cloning and refusing a live job,
+restart recovery resuming a `running` row with its partial bytes intact, `Stop`
+recording running jobs as `interrupted`, and the retention sweep sparing live jobs.
+The real container-restart-mid-flight scenario is an E2E item.
+
 ---
 
-## Phase 8 — SSE
+## Phase 8 — SSE — **DONE (2026-09-04)**
 
 **Goal:** the UI learns about changes without polling.
 
-- `internal/events` hub: subscribe/unsubscribe, per-client bounded buffer, slow
+- [x] `internal/events` hub: subscribe/unsubscribe, per-client 64-event buffer, slow
   clients dropped rather than allowed to grow memory
-- `/api/events` sends a full snapshot on connect, then deltas
-- Event types per CLAUDE.md; heartbeat comment every 20 s to defeat idle timeouts
-- Verify `proxy_buffering off` and `X-Accel-Buffering: no` actually work through nginx
+- [x] `/api/events` sends a full snapshot on connect, then deltas
+- [x] Event types per CLAUDE.md; heartbeat comment every 20 s to defeat idle timeouts
+- [x] `X-Accel-Buffering: no` set on the response; `proxy_buffering off` was already
+  in `deploy/nginx.conf` from Phase 0
 
 **Exit:** two browser tabs plus a phone all see the same live progress; killing the
 Wi-Fi and reconnecting resyncs cleanly.
+
+**Exit test result:** passed in unit form, **not yet with real browsers**. The hub is
+at 100% coverage: fan-out to multiple subscribers, idempotent unsubscribe, progress
+coalescing asserted on both sides of the one-second boundary with an injected clock,
+terminal events never coalesced and clearing the window, a slow subscriber dropped
+after exactly 64 buffered events while a fast one keeps going, and 800 concurrent
+subscribe/publish/unsubscribe cycles. The handler is tested over a real HTTP
+connection: `Content-Type: text/event-stream`, `X-Accel-Buffering: no`, a snapshot
+frame containing the queued job, then a live delta. Two tabs and a phone, and the
+nginx round trip, are E2E and manual items.
 
 ---
 

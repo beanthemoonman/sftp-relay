@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,8 +30,34 @@ type fakeNAS struct {
 	hostKey  string
 	handlers sftp.Handlers
 
+	chmod      *chmodRecorder
 	execOutput string // what an exec request echoes back
 	execStatus uint32
+}
+
+// chmodRecorder stands in for a chmod the in-memory SFTP handler does not
+// implement. The real Synology does, so the call is recorded and allowed
+// rather than failing the way the in-memory tree would.
+type chmodRecorder struct {
+	sftp.FileCmder
+	mu    sync.Mutex
+	modes map[string]os.FileMode
+}
+
+func (c *chmodRecorder) Filecmd(r *sftp.Request) error {
+	if r.Method == "Setstat" {
+		c.mu.Lock()
+		c.modes[r.Filepath] = r.Attributes().FileMode().Perm()
+		c.mu.Unlock()
+		return nil
+	}
+	return c.FileCmder.Filecmd(r)
+}
+
+func (c *chmodRecorder) mode(p string) os.FileMode {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.modes[p]
 }
 
 func startFakeNAS(t *testing.T) *fakeNAS {
@@ -56,10 +83,15 @@ func startFakeNAS(t *testing.T) *fakeNAS {
 	}
 	t.Cleanup(func() { ln.Close() })
 
+	handlers := sftp.InMemHandler()
+	chmod := &chmodRecorder{FileCmder: handlers.FileCmd, modes: map[string]os.FileMode{}}
+	handlers.FileCmd = chmod
+
 	n := &fakeNAS{
 		addr:       ln.Addr().String(),
 		hostKey:    strings.TrimSpace(string(ssh.MarshalAuthorizedKey(signer.PublicKey()))),
-		handlers:   sftp.InMemHandler(),
+		handlers:   handlers,
+		chmod:      chmod,
 		execOutput: "/opt/bin/lftp\n",
 	}
 	go func() {

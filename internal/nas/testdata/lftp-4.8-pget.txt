@@ -1,0 +1,2 @@
+Total: 1 file
+`bigfile.bin' at 0 (0%) [Connecting...]`bigfile.bin' at 1048576 (10%) 512.0K/s eta:18s [Receiving data]`bigfile.bin' at 5242880 (50%) 1.2M/s eta:5s [Receiving data]`bigfile.bin' at 10485760 (100%) 2.0M/s [Receiving data]10485760 bytes transferred in 8 seconds (1.25M/s)
