@@ -435,3 +435,18 @@ only, uploading `test-results/`, the HTML report and container logs on failure.
 Updated `CLAUDE.md` (layout plus an E2E section), `README.md` (how to run it),
 `plan_to_implement.md` (the E2E block closed out) and `e2e_plan.md` (boxes ticked plus an
 "as built" section recording every deviation).
+
+## CI: static bundle tests skip when web/dist is not built (2026-09-05)
+
+`go test -race ./...` failed in the `go` CI job: `TestStaticBundle` and
+`TestStaticShellIsHTML` got 404s because that job never runs `npm run build`,
+so the embed contains only `dist/.gitkeep` and `staticHandler` refuses to
+construct. Locally they passed only because a real bundle happened to be on
+disk.
+
+Added `requireBundle(t)` to `internal/api/static_test.go`: it stats
+`dist/index.html` in the embedded FS and `t.Skip`s when it is absent. The two
+tests are unchanged otherwise. Real serving of the bundle stays covered by the
+`web` CI job (which builds it) and by the e2e suite, which drives the shipped
+image. Verified both ways: with the bundle present all six subtests pass; with
+`index.html` moved aside the package still reports ok.
