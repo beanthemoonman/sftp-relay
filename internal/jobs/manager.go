@@ -254,7 +254,7 @@ func (m *Manager) run(ctx context.Context, job db.Job, settings map[string]strin
 		Remote:   job.RemotePath,
 		Dest:     job.DestPath,
 		Segments: settingInt(settings, "segments", 4),
-		Parallel: settingInt(settings, "concurrency", 2),
+		Parallel: settingInt(settings, "parallel", 2),
 		Server:   server,
 	}
 	code, err := m.transfer(ctx, spec, func(line string) {

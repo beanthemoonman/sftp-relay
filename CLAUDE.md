@@ -129,8 +129,10 @@ makes concurrency resizable at runtime without a restart.
 terminal — retry clones the row rather than reviving it, so history stays honest.
 Every status change goes through `jobs.Transition`.
 
-**Concurrency:** N concurrent jobs (config, default 2), each with M lftp segments
-(config, default 4). Both are DB settings, changeable at runtime.
+**Concurrency:** N concurrent jobs (config, default 2), each file transfer split
+into M pget segments (config, default 4), and each directory mirror moving P
+files in parallel (config, default 2). All are DB settings, changeable at
+runtime.
 
 ## Data model (SQLite, WAL mode)
 
@@ -142,7 +144,7 @@ Every status change goes through `jobs.Transition`.
 - `job_log` — job_id, ts, line (ring-buffered, capped per job)
 - `settings` — key/value: `nas_host`, `nas_user`, `nas_port`, `nas_host_key`,
   `nas_tmp`, `lftp_path`, `sshpass_path`, `allowed_dest_roots`, `concurrency`,
-  `segments`, `history_retention_days`
+  `segments`, `parallel`, `history_retention_days`
 
 Migrations are plain numbered `.sql` files applied in order at startup.
 
@@ -198,7 +200,13 @@ deploy/              Dockerfile, nginx.conf, docker-compose.yml, .env.example
 - Table-driven tests. The lftp output parser and the path validator get thorough unit
   tests — they are the two places bugs are most costly.
 - Frontend: no global state library. TanStack Query for server state, `useState`/context
-  for the rest.
+  for the rest. No router either — five flat screens behind `location.hash`. The SSE
+  hook folds every frame into the query cache, so components only read from Query.
+- The React bundle is embedded (`web/embed.go`, `//go:embed all:dist`) and served by
+  Go inside the authenticated route group, with the SPA fallback refusing to answer
+  an unknown `/api/*` path with HTML. Asset filenames are fixed rather than hashed,
+  so responses carry `Cache-Control: no-cache`.
+- All errors must be explicitly handled and if ignored the _ must be used.
 
 ## Gotchas
 
@@ -210,3 +218,7 @@ deploy/              Dockerfile, nginx.conf, docker-compose.yml, .env.example
   a wrong-owner surprise is diagnosable.
 - `modernc.org/sqlite` is slower than the C build under write contention. Keep writes
   batched — progress updates go to memory and flush to DB at most once per second.
+- `go build` requires `web/dist` to exist. `web/dist/.gitkeep` is committed and the
+  embed uses the `all:` prefix so a checkout builds without node; the Docker image
+  builds the real bundle in a node stage. Vite runs with `emptyOutDir: false` so it
+  cannot delete that placeholder.

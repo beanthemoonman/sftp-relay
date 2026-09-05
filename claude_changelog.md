@@ -138,3 +138,84 @@ container-restart-mid-transfer and two-tabs-plus-a-phone exit criteria are verif
 in unit form only and remain E2E/manual items. `golangci-lint`, `gosec` and
 `govulncheck` are still not installed on this machine. The Pi deployment and the
 24-hour soak are still outstanding from Phase 0.
+
+## Phase 9 — Frontend, and Phase 10 — Hardening (2026-09-05)
+
+Built the React UI and wired it into the binary.
+
+`web/` is Vite + React 18 + TS + Tailwind v4 (through `@tailwindcss/vite`, so there is
+no PostCSS config and no `tailwind.config.js`). Five screens — Browse, Queue, History,
+Servers, Settings — reached through `location.hash` and a lookup table rather than a
+router dependency, because they are flat and there are five of them. Bottom nav on
+mobile, top nav from `sm:` up.
+
+- `src/api.ts` — the wire types and one `fetch` wrapper that turns a non-2xx into an
+  `Error` carrying the server's own message, which is what every screen renders.
+- `src/useEvents.ts` — the single `EventSource`. Frames are folded into the TanStack
+  Query cache (`["jobs"]`, `["job-log", id]`) so components never subscribe to the
+  stream themselves. Reconnect is explicit, 1 s doubling to 30 s, rather than relying
+  on EventSource's own retry, because we want the backoff and the header's
+  live/disconnected dot.
+- `src/format.ts` — bytes, speed, ETA, breadcrumbs and the selection aggregation. The
+  selection bar counts folders separately from the byte total: a directory's size is
+  not known until the server walks it, so folding a zero into a total would be a lie.
+- Browse is split-pane on desktop and a Source/Destination toggle on mobile; the
+  selection persists across directories because it is keyed by full path.
+- Servers leaves credential fields blank on edit, matching the API's "blank keeps the
+  stored value" contract, so a secret never round-trips through the browser.
+
+Serving: `web/embed.go` embeds `dist` with the `all:` prefix, and
+`internal/api/static.go` serves it from inside the authenticated route group — the UI
+is exactly as reachable as the API. The SPA fallback deliberately refuses to answer an
+unknown `/api/*` path with HTML; an API client would parse a 200 page as success.
+Asset names are fixed rather than content-hashed (rebuilds overwrite in place, so
+`dist` never accumulates stale files and the committed `.gitkeep` survives), which is
+why responses carry `Cache-Control: no-cache`.
+
+The Dockerfile gained a node stage that builds the bundle before the Go stage copies
+it in; a `.dockerignore` keeps `node_modules` out of the context. `docker-compose.yml`
+gained a `TARGETARCH` build arg so the same file builds an amd64 image on a PC.
+
+Hardening: the existing credential-redaction gate now also asserts that no password,
+key or passphrase is echoed in a response body, not just kept out of the logs.
+
+Verified: `gofmt -l`, `go vet` and `go test -race ./...` all clean in a linux
+container; coverage `internal/...` — api 84.2%, config 91.2%, db 80.0%, events 100%,
+jobs 85.3%, nas 84.7%, sftpclient 89.9%. Frontend `tsc --noEmit` clean, 27 Vitest
+tests green, bundle 65 KB gzipped. The amd64 image runs here: `/` is 401
+unauthenticated and 200 with credentials, `/assets/app.js` serves, `/api/events`
+delivers its snapshot immediately through nginx, idle RSS 14.6 MiB.
+
+Not done: RSS under a five-job load, the Pi deployment and 24-hour soak, the
+Playwright E2E suite, `golangci-lint`/`gosec`/`govulncheck` (still not installed), and
+every manual item — real Synology, real remote SFTP server, a phone on the LAN.
+
+## 2026-09-05 — Review fixes
+
+Addressed the findings from a full pass against CLAUDE.md and the definition of
+done:
+
+- **Mirror parallelism decoupled from concurrency.** A new `parallel` setting
+  (migration `0004`, default 2) drives `mirror --parallel`; the manager no longer
+  reuses `concurrency` for it. Wired through Settings UI, README and CLAUDE.md.
+- **`nas.Client.disconnect` no longer leaks.** It now closes and nils both the
+  SFTP and SSH clients even when one `Close` reports an error, instead of
+  returning early and leaving a stale session behind.
+- **SSE snapshot no longer shrinks the list.** `snapshotLimit` is now 200,
+  matching the client's jobs-list limit, so a reconnect cannot overwrite a larger
+  cache with a smaller one.
+- **Ignored `Close` errors now use `_`.** `db.Open`, `config.loadDotEnv`,
+  `sftpclient.conn.close` and every `rows.Close` in the repo go through an
+  explicit discard (`_ =` / a `closeRows` helper) rather than a bare call.
+- **DB calls take deadlines.** The pure-DB handlers (`listServers`, server CRUD,
+  settings get/put, jobs list/get/delete/retry/log) now run under a 10s
+  `dbTimeout`, matching the DoD's "every DB call takes a deadline".
+- **`putSettings` validates numeric settings.** `concurrency`, `segments`,
+  `parallel`, `history_retention_days` and `nas_port` reject malformed values
+  with a 400 instead of silently falling back to defaults.
+- **Doc/comment cleanup.** Removed the stale "(later)" in `main.go` and documented
+  that the SSE hub's `lastSent` map stays bounded to in-flight jobs.
+
+Verified: `gofmt -l` clean, `go vet` clean, `go build ./...` clean, `go test
+./...` green (see `plan_to_implement.md` coverage notes still stand).
+

@@ -1,9 +1,18 @@
 # syntax=docker/dockerfile:1
+FROM node:22-alpine AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
 FROM golang:1.27-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+# The bundle must be in place before the build: it is embedded, not served from disk.
+COPY --from=web /web/dist ./web/dist
 ARG TARGETARCH=arm64
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/relay ./cmd/relay
 

@@ -1,4 +1,4 @@
-// Command relay serves the sftp-relay API and (later) the embedded React bundle.
+// Command relay serves the sftp-relay API and the embedded React bundle.
 package main
 
 import (
@@ -52,13 +52,28 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer database.Close()
+	defer func(database *db.DB) {
+		err := database.Close()
+		if err != nil {
+			slog.Error("failed to close database", "err", err)
+		}
+	}(database)
 	slog.Info("database ready", "path", cfg.DBPath)
 
 	pool := sftpclient.NewPool(database, 2*time.Minute, 15*time.Second)
-	defer pool.Close()
+	defer func(pool *sftpclient.Pool) {
+		err := pool.Close()
+		if err != nil {
+			slog.Error("failed to close SFTP client pool", "err", err)
+		}
+	}(pool)
 	nasClient := nas.New(database, cfg.NASSSHKeyPath, 15*time.Second)
-	defer nasClient.Close()
+	defer func(nasClient *nas.Client) {
+		err := nasClient.Close()
+		if err != nil {
+			slog.Error("failed to close NAS client", "err", err)
+		}
+	}(nasClient)
 
 	go probeTools(ctx, nasClient)
 

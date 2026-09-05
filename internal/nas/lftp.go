@@ -139,11 +139,20 @@ func render(spec TransferSpec, dir string, t tools) (workspace, error) {
 	cmds.WriteString("set xfer:use-temp-file yes\n")
 	cmds.WriteString("set xfer:clobber yes\n")
 	cmds.WriteString("set sftp:auto-confirm no\n")
-	fmt.Fprintf(&cmds, "set sftp:connect-program %s\n",
+	_, err := fmt.Fprintf(&cmds, "set sftp:connect-program %s\n",
 		lftpQuote(connect+" "+strings.Join(sshOpts, " ")))
-	fmt.Fprintf(&cmds, "open -u %s sftp://%s\n",
+	if err != nil {
+		return workspace{}, err
+	}
+	_, err = fmt.Fprintf(&cmds, "open -u %s sftp://%s\n",
 		lftpQuote(spec.Server.Username+","+spec.Server.Password), lftpQuote(spec.Server.Host))
-	fmt.Fprintf(&cmds, "%s\n", transfer)
+	if err != nil {
+		return workspace{}, err
+	}
+	_, err = fmt.Fprintf(&cmds, "%s\n", transfer)
+	if err != nil {
+		return workspace{}, err
+	}
 	cmds.WriteString("bye\n")
 	files = append(files, genFile{name: "cmds", mode: 0o600, body: cmds.Bytes()})
 
@@ -284,11 +293,19 @@ func (c *Client) writeWorkspace(ctx context.Context, ws workspace) error {
 			// Mode before content: the file must never be readable while it holds
 			// a credential, not even for the width of a write.
 			if err := sc.Chmod(p, f.mode); err != nil {
-				fh.Close() //nolint:errcheck // the error below is the one that matters
+				err := fh.Close()
+				if err != nil {
+					slog.Error("failed to close file handle", "err", err)
+					return err
+				} //nolint:errcheck // the error below is the one that matters
 				return fmt.Errorf("nas: securing %s: %w", p, err)
 			}
 			if _, err := fh.Write(f.body); err != nil {
-				fh.Close() //nolint:errcheck // ditto
+				err := fh.Close()
+				if err != nil {
+					slog.Error("failed to close file handle", "err", err)
+					return err
+				} //nolint:errcheck // ditto
 				return fmt.Errorf("nas: writing %s: %w", p, err)
 			}
 			if err := fh.Close(); err != nil {
@@ -315,7 +332,12 @@ func (c *Client) stream(ctx context.Context, cmd string, onLine func(string)) (i
 	if err != nil {
 		return -1, fmt.Errorf("nas: new session: %w", err)
 	}
-	defer sess.Close() //nolint:errcheck // the session is finished either way
+	defer func(sess *ssh.Session) {
+		err := sess.Close()
+		if err != nil {
+			slog.Error("failed to close session", "err", err)
+		}
+	}(sess) //nolint:errcheck // the session is finished either way
 
 	out, err := sess.StdoutPipe()
 	if err != nil {
@@ -344,7 +366,10 @@ func (c *Client) stream(ctx context.Context, cmd string, onLine func(string)) (i
 
 	select {
 	case <-ctx.Done():
-		sess.Signal(ssh.SIGTERM) //nolint:errcheck // best effort; the session closes next
+		err := sess.Signal(ssh.SIGTERM)
+		if err != nil {
+			return 0, err
+		} //nolint:errcheck // best effort; the session closes next
 		return -1, fmt.Errorf("nas: transfer: %w", ctx.Err())
 	case err := <-waited:
 		<-scanned

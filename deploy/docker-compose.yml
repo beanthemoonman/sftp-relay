@@ -3,6 +3,9 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      # arm64 for the Pi. Set TARGETARCH=amd64 to build a runnable image on a PC.
+      args:
+        TARGETARCH: ${TARGETARCH:-arm64}
     image: sftp-relay:latest
     container_name: sftp-relay
     restart: unless-stopped

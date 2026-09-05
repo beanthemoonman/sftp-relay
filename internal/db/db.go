@@ -30,12 +30,12 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	// ponytail: one writer avoids modernc's write-contention retries entirely.
 	sqlDB.SetMaxOpenConns(1)
 	if err := sqlDB.PingContext(ctx); err != nil {
-		sqlDB.Close()
+		_ = sqlDB.Close()
 		return nil, fmt.Errorf("db: ping %s: %w", path, err)
 	}
 	d := &DB{sqlDB}
 	if err := d.migrate(ctx); err != nil {
-		sqlDB.Close()
+		_ = sqlDB.Close()
 		return nil, err
 	}
 	return d, nil

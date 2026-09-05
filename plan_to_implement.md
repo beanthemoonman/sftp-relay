@@ -159,7 +159,8 @@ null bytes, relative paths, the filesystem root and an empty allow-list. `CheckP
 - [x] Generated script writes lftp's PID (not the shell's) to a pidfile and uses
   `trap cleanup EXIT INT TERM HUP` to remove the workspace on any ordinary exit path
 - [x] One-shot `ssh` exec per job; combined stdout/stderr streamed back, split on
-  `` as well as `
+  `
+` as well as `
 ` so lftp's in-place progress updates arrive as separate lines
 - [x] Command shapes for file (`pget -n -c`) and directory (`mirror --continue --parallel`)
 - [x] Exit code propagated; non-progress output captured into `job_log`
@@ -206,7 +207,8 @@ E2E.
 
 **Exit test result:** passed. `ParseProgress` is at 100% statement coverage over a
 14-case table plus three captured fixtures in `internal/nas/testdata`: the 4.8-era
-`at N (P%)` form with `` updates, the 4.9-era `got N of M` form with interleaved
+`at N (P%)` form with `
+` updates, the 4.9-era `got N of M` form with interleaved
 stderr, a zero-byte file, a non-UTF-8 filename, and output that yields no parseable
 progress at all. Both transfer fixtures reach 100% and end on a summary line; the
 unparseable one yields nothing, which is exactly when the size-poll fallback takes
@@ -273,36 +275,66 @@ nginx round trip, are E2E and manual items.
 
 ---
 
-## Phase 9 — Frontend
+## Phase 9 — Frontend — **DONE (2026-09-05)**
 
 **Goal:** the app people actually touch.
 
-- Vite + React + TS + Tailwind; TanStack Query for server state
-- Routes: Browse, Queue, History, Servers, Settings
-- Browse: server picker → remote pane → destination picker → confirm. Split-pane on
-  desktop, sequential steps on mobile.
-- Multi-select with a persistent selection bar showing count and total size
-- Queue: live cards with progress, speed, ETA, cancel
-- Servers: CRUD forms with a Test Connection action and inline result
-- Settings: NAS config, allowed roots, concurrency, segments, retention
-- `EventSource` hook feeding the query cache; automatic reconnect with backoff
-- Build output embedded via `embed.FS` and served by Go
+- [x] Vite + React + TS + Tailwind (v4, via `@tailwindcss/vite` — no PostCSS config);
+  TanStack Query for server state
+- [x] Routes: Browse, Queue, History, Servers, Settings. `location.hash` and a lookup
+  table rather than a router dependency — five flat screens, no nested routes.
+- [x] Browse: server picker → remote pane → destination picker → confirm. Split-pane
+  on desktop (`sm:grid-cols-2`), a Source/Destination toggle on mobile.
+- [x] Multi-select with a persistent selection bar showing count and total size.
+  Directories are counted separately from the byte total, because their size is not
+  known until the server walks them.
+- [x] Queue: live cards with progress, speed, ETA, cancel, queue position, and an
+  expandable per-job log. History carries retry and delete.
+- [x] Servers: CRUD forms with a Test Connection action and inline result. Credential
+  fields are blank on edit — blank means "keep what is stored".
+- [x] Settings: NAS config, allowed roots, concurrency, segments, retention, plus the
+  probed `lftp`/`sshpass` paths and a Clear button for the pinned NAS host key
+- [x] `EventSource` hook feeding the query cache; explicit reconnect with backoff
+  (1 s doubling to 30 s) and a live/disconnected dot in the header
+- [x] Build output embedded via `embed.FS` and served by Go, inside the authenticated
+  route group. The SPA fallback answers unknown paths with the shell but leaves
+  unknown `/api/*` paths as a 404 rather than serving HTML to an API client.
 
 **Exit:** full flow completed from a phone with no console errors.
 
----
+**Exit test result:** built and served, **not yet driven from a phone**. The image
+builds the bundle in a node stage and the container serves it: `GET /` is 401
+unauthenticated and 200 with credentials, `/assets/app.js` likewise, and `/api/events`
+delivers its snapshot frame immediately through nginx. Bundle is 206 KB raw / 65 KB
+gzipped, well under the 500 KB gate. Vitest covers the formatting and path helpers,
+the selection-bar aggregation, and the SSE hook: snapshot resync, delta folding, log
+buffering, the disconnected indicator, reconnect backoff doubling, and no reconnect
+after unmount — 27 tests, driven with fake timers and a stub `EventSource`, no sleeps.
+Go-side tests assert the static routes, the auth on them, the SPA fallback and the
+`/api/*` 404. The phone run-through is a manual item.
 
-## Phase 10 — Hardening
+## Phase 10 — Hardening — **PARTLY DONE (2026-09-05)**
 
-- Credential redaction verified in every log path
-- `GOMEMLIMIT` / `GOGC=50` tuned; RSS measured under a 5-job load
-- Healthcheck in compose; restart policy `unless-stopped`
-- README: NAS prerequisites (lftp install, SSH key setup, allowed roots), backup of
-  `/data/app.db`
-- Error surfaces reviewed: every failure the user can cause should produce a message
-  that says what to do next
+- [x] Credential redaction verified in every log path — the security-gate test drives
+  create, list, test, browse and update with logging at debug and asserts no password,
+  private key or passphrase reaches the log, and now also that none is echoed in a
+  response body
+- [x] `GOMEMLIMIT=48MiB` / `GOGC=50` set in the image
+- [ ] RSS measured under a 5-job load — idle RSS in the running container is 14.6 MiB;
+  the loaded measurement needs a reachable NAS
+- [x] Healthcheck in the image, restart policy `unless-stopped` in compose, and a
+  `TARGETARCH` build arg so the same compose file builds an amd64 image for a PC
+- [x] README: the UI, the frontend dev loop, NAS prerequisites, `.env`, backup and
+  recovery, accepted risks
+- [x] Error surfaces reviewed: `writeErr` maps every domain error onto a status code,
+  and the UI renders the server's message inline on every mutation and query rather
+  than swallowing it
 
----
+**Outstanding and deliberately not claimed:** the load-time RSS measurement, the Pi
+deployment and 24-hour soak, `golangci-lint`/`gosec`/`govulncheck` (still not
+installed on this machine), the Playwright E2E suite from the definition of done, and
+every manual item — real Synology, real remote SFTP server, a phone on the LAN, a
+1 GB transfer.
 
 ## Risk register
 

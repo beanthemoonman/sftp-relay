@@ -125,11 +125,15 @@ func (c *Client) disconnect() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.sftp != nil {
-		c.sftp.Close()
+		if err := c.sftp.Close(); err != nil {
+			slog.Error("failed to close sftp client", "err", err)
+		}
 		c.sftp = nil
 	}
 	if c.ssh != nil {
-		c.ssh.Close()
+		if err := c.ssh.Close(); err != nil {
+			slog.Error("failed to close ssh client", "err", err)
+		}
 		c.ssh = nil
 	}
 }

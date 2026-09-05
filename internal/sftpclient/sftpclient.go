@@ -52,8 +52,8 @@ type conn struct {
 }
 
 func (c *conn) close() {
-	c.sftp.Close()
-	c.ssh.Close()
+	_ = c.sftp.Close()
+	_ = c.ssh.Close()
 }
 
 // Pool keeps at most one connection per server alive, evicting idle ones so a

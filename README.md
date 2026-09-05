@@ -9,11 +9,38 @@ the build order lives in [plan_to_implement.md](plan_to_implement.md).
 
 ## Status
 
-Phases 0–8 are done: the container runs, persists to SQLite, requires basic auth,
+Phases 0–10 are built: the container runs, persists to SQLite, requires basic auth,
 manages SFTP servers and browses them, browses the NAS destination tree with an
-allow-listed path validator, and runs real transfers — a worker pool drives `lftp`
-on the NAS, parses its output for progress, and streams live updates over SSE.
-There is no UI yet (Phase 9), so everything below is driven with `curl`.
+allow-listed path validator, runs real transfers — a worker pool drives `lftp` on
+the NAS, parses its output for progress, and streams live updates over SSE — and
+serves a React UI for all of it. What remains is verification against the real
+Synology, the real Pi and a real phone; see `plan_to_implement.md`.
+
+## The UI
+
+Open `http://<pi>:8088/` and log in with `AUTH_USER`/`AUTH_PASS`. Five screens,
+mobile first: **Browse** (pick a server, select files, pick a NAS destination,
+queue them), **Queue** (live progress, speed, ETA, cancel), **History** (finished
+jobs, retry, delete, per-job log), **Servers** (CRUD plus Test Connection) and
+**Settings** (NAS host, allowed roots, concurrency, segments, retention).
+
+The bundle is embedded in the binary and served by Go behind the same basic auth
+as the API, so there is nothing extra to deploy. A dot in the header is green while
+the event stream is live and amber while it reconnects.
+
+### Working on the frontend
+
+```sh
+cd web
+npm install
+npm run dev      # Vite on :5173, /api proxied to a locally running relay
+npm run build    # writes web/dist, which go:embed picks up
+npm test         # vitest
+```
+
+`go build` needs `web/dist` to exist; the committed `web/dist/.gitkeep` is what
+makes a clean checkout build without node installed. The Docker image builds the
+bundle itself in a node stage, so nothing needs to be committed.
 
 ## Running it
 
@@ -25,7 +52,11 @@ curl http://<pi>:8088/api/health     # {"status":"ok"}
 
 The image targets `linux/arm64`; build it on the Pi, or with
 `docker buildx build --platform linux/arm64`. For a local x86 test:
-`docker build -f deploy/Dockerfile --build-arg TARGETARCH=amd64 -t sftp-relay .`
+`TARGETARCH=amd64 docker compose -f deploy/docker-compose.yml up -d --build`.
+
+The compose file bind-mounts the NAS private key from `NAS_SSH_KEY_PATH_HOST`. That
+file must exist before the first `up`, or Docker will helpfully create a directory
+in its place.
 
 ## `.env` reference
 
@@ -112,7 +143,8 @@ curl -s $A -X PUT $R/api/settings -d '{
 | `sshpass_path` | probed | Absolute path of `sshpass`; only needed for password-authenticated remote servers |
 | `allowed_dest_roots` | empty | Comma or newline separated. **Empty means no destination is valid** — nothing can be written until you set this. |
 | `concurrency` | `2` | Concurrent jobs |
-| `segments` | `4` | lftp segments per transfer |
+| `segments` | `4` | lftp pget segments per file |
+| `parallel` | `2` | Files transferred in parallel by a `mirror` |
 | `history_retention_days` | `90` | Job history sweep |
 
 ## Destination safety

@@ -36,7 +36,8 @@ func TestOpenAppliesMigrationsAndSeedsDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	for k, want := range map[string]string{
-		"concurrency": "2", "segments": "4", "history_retention_days": "90", "allowed_dest_roots": "",
+		"concurrency": "2", "segments": "4", "parallel": "2",
+		"history_retention_days": "90", "allowed_dest_roots": "",
 	} {
 		if got[k] != want {
 			t.Errorf("setting %s = %q, want %q", k, got[k], want)

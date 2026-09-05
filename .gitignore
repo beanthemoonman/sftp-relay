@@ -39,3 +39,8 @@ relay-data/
 data/
 /keys/
 nas_key
+
+# --- Frontend ---
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep

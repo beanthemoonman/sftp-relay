@@ -55,12 +55,18 @@ func scanServer(row scanner) (Server, error) {
 	return s, err
 }
 
+// closeRows discards rows.Close's error: after a successful scan the close
+// error is not actionable, and the convention is to use _ for ignored errors.
+func closeRows(rows *sql.Rows) {
+	_ = rows.Close()
+}
+
 func (d *DB) ListServers(ctx context.Context) ([]Server, error) {
 	rows, err := d.QueryContext(ctx, `SELECT `+serverCols+` FROM servers ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("db: list servers: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []Server
 	for rows.Next() {
 		s, err := scanServer(rows)
@@ -146,7 +152,7 @@ func (d *DB) ListJobs(ctx context.Context, status string, limit int, cursor int6
 	if err != nil {
 		return nil, fmt.Errorf("db: list jobs: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []Job
 	for rows.Next() {
 		j, err := scanJob(rows)
@@ -232,7 +238,7 @@ func (d *DB) JobLog(ctx context.Context, jobID int64) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: job %d log: %w", jobID, err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []string
 	for rows.Next() {
 		var line string
@@ -252,7 +258,7 @@ func (d *DB) Settings(ctx context.Context) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: settings: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	out := map[string]string{}
 	for rows.Next() {
 		var k, v string
@@ -325,7 +331,7 @@ func (d *DB) RunnableJobs(ctx context.Context, limit int) ([]Job, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: runnable jobs: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 	var out []Job
 	for rows.Next() {
 		j, err := scanJob(rows)

@@ -38,9 +38,12 @@ const progressInterval = time.Second
 
 // Hub fans events out to every connected client.
 type Hub struct {
-	mu       sync.Mutex
-	subs     map[int64]chan Event
-	nextID   int64
+	mu     sync.Mutex
+	subs   map[int64]chan Event
+	nextID int64
+	// lastSent is the per-job coalescing clock. It stays bounded to in-flight
+	// jobs: done/failed/cancelled all arrive as done/failed events (which clear
+	// the entry), and an interrupted job is resumed and finished, not abandoned.
 	lastSent map[int64]time.Time
 	now      func() time.Time
 }

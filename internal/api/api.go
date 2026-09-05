@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -27,6 +28,18 @@ import (
 // opTimeout bounds every SSH/SFTP-backed request. Browsing a cold server over a
 // slow link is the worst case, hence 30s rather than something tighter.
 const opTimeout = 30 * time.Second
+
+// dbTimeout bounds a pure SQLite read/write. SSH/SFTP calls already use
+// opTimeout; local DB work is fast but should still not hang a handler forever.
+const dbTimeout = 10 * time.Second
+
+// numericSettings are the settings that must be whole numbers. putSettings
+// rejects a malformed value here rather than letting the read path silently
+// fall back to a default, which would hide a typo like "nas_port":"twenty-two".
+var numericSettings = map[string]bool{
+	"concurrency": true, "segments": true, "parallel": true,
+	"history_retention_days": true, "nas_port": true,
+}
 
 type API struct {
 	store *db.DB
@@ -71,12 +84,20 @@ func New(store *db.DB, pool *sftpclient.Pool, nasClient *nas.Client,
 
 		r.Get("/api/settings", a.getSettings)
 		r.Put("/api/settings", a.putSettings)
+
+		// The React bundle is the catch-all, behind the same auth as the API.
+		// A build without it still serves the API; only the UI is missing.
+		if static, err := staticHandler(); err != nil {
+			slog.Error("static assets unavailable", "err", err)
+		} else {
+			r.Handle("/*", static)
+		}
 	})
 	return r
 }
 
-// basicAuth guards everything except the health check. Static assets will sit
-// inside this group too once the React bundle is embedded.
+// basicAuth guards everything except the health check, the embedded React
+// bundle included.
 func (a *API) basicAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, pass, ok := r.BasicAuth()
@@ -187,7 +208,9 @@ func (in serverInput) apply(s db.Server) db.Server {
 }
 
 func (a *API) listServers(w http.ResponseWriter, r *http.Request) {
-	servers, err := a.store.ListServers(r.Context())
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	servers, err := a.store.ListServers(ctx)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -209,7 +232,9 @@ func (a *API) createServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s := in.apply(db.Server{})
-	id, err := a.store.CreateServer(r.Context(), s)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	id, err := a.store.CreateServer(ctx, s)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -232,13 +257,15 @@ func (a *API) updateServer(w http.ResponseWriter, r *http.Request) {
 		writeStatus(w, http.StatusBadRequest, err)
 		return
 	}
-	existing, err := a.store.GetServer(r.Context(), id)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	existing, err := a.store.GetServer(ctx, id)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
 	updated := in.apply(existing)
-	if err := a.store.UpdateServer(r.Context(), updated); err != nil {
+	if err := a.store.UpdateServer(ctx, updated); err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -251,7 +278,9 @@ func (a *API) deleteServer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := a.store.DeleteServer(r.Context(), id); err != nil {
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	if err := a.store.DeleteServer(ctx, id); err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -340,7 +369,9 @@ func (a *API) mkdirNAS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) getSettings(w http.ResponseWriter, r *http.Request) {
-	s, err := a.store.Settings(r.Context())
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	s, err := a.store.Settings(ctx)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -353,7 +384,18 @@ func (a *API) putSettings(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := a.store.SetSettings(r.Context(), in); err != nil {
+	for k, v := range in {
+		if numericSettings[k] && strings.TrimSpace(v) != "" {
+			if n, err := strconv.Atoi(strings.TrimSpace(v)); err != nil || n < 0 {
+				writeStatus(w, http.StatusBadRequest,
+					fmt.Errorf("setting %q must be a non-negative number, got %q", k, v))
+				return
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	if err := a.store.SetSettings(ctx, in); err != nil {
 		writeErr(w, err)
 		return
 	}

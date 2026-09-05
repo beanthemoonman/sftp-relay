@@ -360,7 +360,7 @@ func TestCredentialsNeverReachTheLogs(t *testing.T) {
 	id := itoa(created.ID)
 
 	// Exercise the paths that touch credentials, including the failing ones.
-	do(t, h, http.MethodGet, "/api/servers", "", true)
+	list := do(t, h, http.MethodGet, "/api/servers", "", true)
 	do(t, h, http.MethodPost, "/api/servers/"+id+"/test", "", true)
 	do(t, h, http.MethodGet, "/api/servers/"+id+"/browse?path=/", "", true)
 	do(t, h, http.MethodPut, "/api/servers/"+id, string(body), true)
@@ -369,6 +369,13 @@ func TestCredentialsNeverReachTheLogs(t *testing.T) {
 	for _, secret := range []string{secretPass, secretKey, secretPhr, "Zm9vYmFy"} {
 		if strings.Contains(logs.String(), secret) {
 			t.Errorf("a credential reached the logs: %s", logs.String())
+		}
+		// The same material must not come back on the wire either: the UI
+		// re-sends a blank field to mean "keep what is stored".
+		for _, body := range []string{w.Body.String(), list.Body.String()} {
+			if strings.Contains(body, secret) {
+				t.Errorf("a credential was echoed in a response: %s", body)
+			}
 		}
 	}
 	if logs.Len() == 0 {

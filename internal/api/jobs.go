@@ -16,8 +16,10 @@ import (
 	"sftp-relay/internal/sftpclient"
 )
 
-// snapshotLimit caps the resync payload a reconnecting client receives.
-const snapshotLimit = 100
+// snapshotLimit caps the resync payload a reconnecting client receives. It must
+// stay at least as large as the client's jobs-list limit (web/src/api.ts), or a
+// reconnect would shrink the list the client has already loaded.
+const snapshotLimit = 200
 
 // heartbeat keeps idle proxies and phone radios from dropping the stream.
 const heartbeat = 20 * time.Second
@@ -29,7 +31,9 @@ func (a *API) listJobs(w http.ResponseWriter, r *http.Request) {
 		limit = 50
 	}
 	cursor := int64(intParam(q.Get("cursor"), 0))
-	rows, err := a.store.ListJobs(r.Context(), q.Get("status"), limit, cursor)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	rows, err := a.store.ListJobs(ctx, q.Get("status"), limit, cursor)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -127,7 +131,9 @@ func (a *API) getJob(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	row, err := a.store.GetJob(r.Context(), id)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	row, err := a.store.GetJob(ctx, id)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -140,7 +146,9 @@ func (a *API) deleteJob(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	row, err := a.store.GetJob(r.Context(), id)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	row, err := a.store.GetJob(ctx, id)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -150,7 +158,7 @@ func (a *API) deleteJob(w http.ResponseWriter, r *http.Request) {
 			fmt.Errorf("job %d is %s: cancel it before deleting it", id, row.Status))
 		return
 	}
-	if err := a.store.DeleteJob(r.Context(), id); err != nil {
+	if err := a.store.DeleteJob(ctx, id); err != nil {
 		writeErr(w, err)
 		return
 	}
@@ -181,12 +189,14 @@ func (a *API) retryJob(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	newID, err := a.jobs.Retry(r.Context(), id)
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	newID, err := a.jobs.Retry(ctx, id)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	row, err := a.store.GetJob(r.Context(), newID)
+	row, err := a.store.GetJob(ctx, newID)
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -199,11 +209,13 @@ func (a *API) jobLog(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, err := a.store.GetJob(r.Context(), id); err != nil {
+	ctx, cancel := context.WithTimeout(r.Context(), dbTimeout)
+	defer cancel()
+	if _, err := a.store.GetJob(ctx, id); err != nil {
 		writeErr(w, err)
 		return
 	}
-	lines, err := a.store.JobLog(r.Context(), id)
+	lines, err := a.store.JobLog(ctx, id)
 	if err != nil {
 		writeErr(w, err)
 		return
