@@ -23,7 +23,9 @@ RUN apk add --no-cache nginx libcap ca-certificates \
  && chown -R relay:relay /data /var/lib/nginx /var/log/nginx /run/nginx \
  && setcap 'cap_net_bind_service=+ep' /usr/sbin/nginx
 COPY deploy/nginx.conf /etc/nginx/nginx.conf
-COPY deploy/entrypoint.sh /entrypoint.sh
+# --chmod because git stores this 0644 on a Windows checkout; Docker Desktop
+# hands it over as 0755 anyway, so a missing exec bit only bites on Linux CI.
+COPY --chmod=755 deploy/entrypoint.sh /entrypoint.sh
 COPY --from=build /out/relay /usr/local/bin/relay
 USER relay
 WORKDIR /data

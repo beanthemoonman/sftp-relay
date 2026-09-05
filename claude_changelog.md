@@ -450,3 +450,16 @@ tests are unchanged otherwise. Real serving of the bundle stays covered by the
 `web` CI job (which builds it) and by the e2e suite, which drives the shipped
 image. Verified both ways: with the bundle present all six subtests pass; with
 `index.html` moved aside the package still reports ok.
+
+## Fix: relay image entrypoint had no exec bit on Linux CI (2026-09-05)
+
+The e2e job died at `docker compose up` with `exec: "/entrypoint.sh":
+permission denied`. Not the runner — `deploy/entrypoint.sh` was mode 100644 in
+the git index (a Windows checkout has no exec bit to record) and `COPY` carries
+the source mode through. It never bit locally because Docker Desktop's file
+sharing presents the context as 0755.
+
+`deploy/Dockerfile` now uses `COPY --chmod=755`, and the file's index mode was
+set to 100755 as well. Verified: rebuilt the image and `/entrypoint.sh` is
+`-rwxr-xr-x`. The three scripts under `test/e2e/` were never affected —
+`fake-nas/Dockerfile` chmods its two, and `seed.sh` is invoked as `sh /seed.sh`.
