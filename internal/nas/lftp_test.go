@@ -67,7 +67,7 @@ func TestRenderFileJobWithKeyAuth(t *testing.T) {
 	ws, err := render(TransferSpec{
 		JobID: 7, Kind: "file", Remote: "/pub/bigfile.bin", Dest: "/volume1/media",
 		Segments: 4, Parallel: 2, Server: keyServer(t),
-	}, "/tmp/job-7", tools{lftp: "/opt/bin/lftp"})
+	}, "/share/stage/job-7", "/tmp/job-7", tools{lftp: "/opt/bin/lftp"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestRenderDirJobMirrors(t *testing.T) {
 	ws, err := render(TransferSpec{
 		JobID: 1, Kind: "dir", Remote: "/pub/season 1", Dest: "/volume1/media",
 		Segments: 4, Parallel: 3, Server: keyServer(t),
-	}, "/tmp/job-1", tools{lftp: "/opt/bin/lftp"})
+	}, "/share/stage/job-1", "/tmp/job-1", tools{lftp: "/opt/bin/lftp"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestGeneratedCommandCarriesNoCredentials(t *testing.T) {
 			ws, err := render(TransferSpec{
 				JobID: 3, Kind: "file", Remote: "/a/b", Dest: "/volume1/media",
 				Segments: 2, Parallel: 1, Server: tc.server,
-			}, "/tmp/job-3", tc.tools)
+			}, "/share/stage/job-3", "/tmp/job-3", tc.tools)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -177,7 +177,7 @@ func TestGeneratedCommandCarriesNoCredentials(t *testing.T) {
 					t.Errorf("runner script leaks a credential:\n%s", runner.body)
 				}
 			}
-			if !strings.HasPrefix(ws.cmd, "/bin/sh '/tmp/job-3/run.sh'") {
+			if !strings.HasPrefix(ws.cmd, "/bin/sh '/share/stage/job-3/run.sh'") {
 				t.Errorf("command = %q, want a plain reference to the runner", ws.cmd)
 			}
 		})
@@ -191,11 +191,11 @@ func TestRenderPasswordAuth(t *testing.T) {
 			Password: testPassword, HostKey: testHostKey},
 	}
 
-	if _, err := render(spec, "/tmp/job-4", tools{lftp: "/opt/bin/lftp"}); !errors.Is(err, ErrNoSSHPass) {
+	if _, err := render(spec, "/share/stage/job-4", "/tmp/job-4", tools{lftp: "/opt/bin/lftp"}); !errors.Is(err, ErrNoSSHPass) {
 		t.Fatalf("without sshpass: err = %v, want ErrNoSSHPass", err)
 	}
 
-	ws, err := render(spec, "/tmp/job-4", tools{lftp: "/opt/bin/lftp", sshpass: "/opt/bin/sshpass"})
+	ws, err := render(spec, "/share/stage/job-4", "/tmp/job-4", tools{lftp: "/opt/bin/lftp", sshpass: "/opt/bin/sshpass"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +276,7 @@ func TestRenderRejectsBadInput(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := render(tc.spec, "/tmp/job-1", tc.tools)
+			_, err := render(tc.spec, "/share/stage/job-1", "/tmp/job-1", tc.tools)
 			if err == nil {
 				t.Fatal("want an error, got none")
 			}
@@ -296,7 +296,7 @@ func TestRenderDecryptsAPassphraseProtectedKey(t *testing.T) {
 		PrivateKey: encrypted, Passphrase: "s3cret", HostKey: testHostKey}
 
 	ws, err := render(TransferSpec{JobID: 5, Kind: "file", Remote: "/a", Dest: "/d", Server: s},
-		"/tmp/job-5", tools{lftp: "/opt/bin/lftp"})
+		"/share/stage/job-5", "/tmp/job-5", tools{lftp: "/opt/bin/lftp"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +313,7 @@ func TestRenderDecryptsAPassphraseProtectedKey(t *testing.T) {
 
 	s.Passphrase = "wrong"
 	if _, err := render(TransferSpec{JobID: 5, Kind: "file", Remote: "/a", Dest: "/d", Server: s},
-		"/tmp/job-5", tools{lftp: "/opt/bin/lftp"}); err == nil ||
+		"/share/stage/job-5", "/tmp/job-5", tools{lftp: "/opt/bin/lftp"}); err == nil ||
 		!strings.Contains(err.Error(), "decrypting private key") {
 		t.Errorf("wrong passphrase: err = %v", err)
 	}
@@ -323,7 +323,7 @@ func TestRenderClampsSegmentsAndParallel(t *testing.T) {
 	ws, err := render(TransferSpec{
 		JobID: 6, Kind: "dir", Remote: "/a", Dest: "/d", Segments: 0, Parallel: -3,
 		Server: keyServer(t),
-	}, "/tmp/job-6", tools{lftp: "/opt/bin/lftp"})
+	}, "/share/stage/job-6", "/tmp/job-6", tools{lftp: "/opt/bin/lftp"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -567,5 +567,49 @@ func TestToolsProbesLftpWhenItIsNotCachedYet(t *testing.T) {
 	}
 	if tmp != "/tmp" {
 		t.Errorf("nas_tmp = %q, want the seeded default", tmp)
+	}
+}
+
+func TestNormalizePEM(t *testing.T) {
+	for _, tc := range []struct {
+		name, in, want string
+	}{
+		{"missing final newline", "-----BEGIN-----\nabc\n-----END-----",
+			"-----BEGIN-----\nabc\n-----END-----\n"},
+		{"crlf", "-----BEGIN-----\r\nabc\r\n-----END-----\r\n",
+			"-----BEGIN-----\nabc\n-----END-----\n"},
+		{"bare cr", "-----BEGIN-----\rabc\r-----END-----\r",
+			"-----BEGIN-----\nabc\n-----END-----\n"},
+		{"already clean", "-----BEGIN-----\nabc\n-----END-----\n",
+			"-----BEGIN-----\nabc\n-----END-----\n"},
+		{"trailing blank lines", "-----BEGIN-----\nabc\n-----END-----\n\n\n",
+			"-----BEGIN-----\nabc\n-----END-----\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := string(normalizePEM([]byte(tc.in))); got != tc.want {
+				t.Errorf("normalizePEM = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSizeCountsAnInFlightTempFile(t *testing.T) {
+	c, _, _ := setup(t)
+	ctx := context.Background()
+	if err := c.do(ctx, func(sc *sftp.Client) error {
+		f, err := sc.Create("/volume1/media/films/.in.part.bin")
+		if err != nil {
+			return err
+		}
+		if _, err := f.Write(make([]byte, 512)); err != nil {
+			return err
+		}
+		return f.Close()
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// lftp has not renamed it yet, so the final name does not exist.
+	if n, err := c.Size(ctx, "/volume1/media/films/part.bin"); err != nil || n != 512 {
+		t.Errorf("in-flight size = %d, err = %v, want 512", n, err)
 	}
 }

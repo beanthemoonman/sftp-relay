@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: gofmt -l . | tee /dev/stderr | (! read)
+      - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.13.2
+      - run: go test -race ./...
+      - name: arm64 build (no cgo)
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: arm64
+        run: go build ./...
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    needs: [go, web]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: test/e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: test/e2e/package-lock.json
+      - run: npm ci
+      # Chromium only. The DoD's browser matrix is a manual concern; three
+      # browsers here buys flake, not coverage.
+      - run: npx playwright install --with-deps chromium
+      - run: docker compose up -d --build
+      - run: npx playwright test
+      - if: failure()
+        run: docker compose logs --no-color > relay-logs.txt
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            test/e2e/test-results/
+            test/e2e/playwright-report/
+            test/e2e/relay-logs.txt

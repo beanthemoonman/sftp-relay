@@ -102,7 +102,7 @@ export default function Browse() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className={pane === "source" ? "" : "hidden sm:block"}>
+        <div data-testid="source-pane" className={pane === "source" ? "" : "hidden sm:block"}>
           <SourcePane
             data={listing.data}
             error={listing.error}
@@ -113,13 +113,15 @@ export default function Browse() {
             toggle={toggle}
           />
         </div>
-        <div className={pane === "dest" ? "" : "hidden sm:block"}>
+        <div data-testid="dest-pane" className={pane === "dest" ? "" : "hidden sm:block"}>
           <DestPane dest={dest} setDest={setDest} />
         </div>
       </div>
 
       {totals.count > 0 && (
-        <div className="fixed inset-x-0 bottom-14 z-20 border-t border-slate-800 bg-slate-900/95 p-3 backdrop-blur sm:bottom-0">
+        <div
+          data-testid="selection-bar"
+          className="fixed inset-x-0 bottom-14 z-20 border-t border-slate-800 bg-slate-900/95 p-3 backdrop-blur sm:bottom-0">
           <div className="mx-auto flex max-w-5xl items-center gap-3">
             <div className="min-w-0 text-sm">
               <div className="font-medium">

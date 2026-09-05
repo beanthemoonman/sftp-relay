@@ -39,8 +39,15 @@ relay-data/
 data/
 /keys/
 nas_key
+nas_key.pub
 
 # --- Frontend ---
 web/node_modules/
 web/dist/*
 !web/dist/.gitkeep
+
+# --- E2E ---
+test/e2e/node_modules/
+test/e2e/keys/
+test/e2e/test-results/
+test/e2e/playwright-report/

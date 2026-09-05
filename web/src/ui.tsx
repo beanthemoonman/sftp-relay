@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 // ponytail: a handful of styled primitives instead of a component library.
 // Upgrade path is a real design system, if this ever grows past five screens.
@@ -13,9 +13,16 @@ export const input =
   "w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm " +
   "text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500";
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className = "",
+  ...rest
+}: { children: ReactNode; className?: string } & HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`rounded-xl border border-slate-800 bg-slate-900/60 p-3 ${className}`}>
+    <div
+      className={`rounded-xl border border-slate-800 bg-slate-900/60 p-3 ${className}`}
+      {...rest}
+    >
       {children}
     </div>
   );

@@ -196,3 +196,26 @@ If any of that is unacceptable for your network, this is not the tool for you.
    then every destination is rejected, deliberately.
 5. **Ownership.** Files land on the NAS owned by the SSH user you configured. If that
    is not the user your media apps run as, fix it there rather than in the relay.
+
+## End-to-end tests
+
+`test/e2e/` runs the whole thing in containers — a seeded SFTP source, a fake Synology
+with `sshd`, `lftp` and `sshpass`, and the shipped relay image — and drives the real UI
+with Playwright. No mocked API, and every transfer scenario ends in a `sha256sum` inside
+the fake NAS.
+
+```sh
+cd test/e2e
+npm ci
+npx playwright install --with-deps chromium
+docker compose up -d --build       # builds the relay image from this repo
+npx playwright test
+docker compose down -v             # between runs: the resume and cleanup specs are stateful
+```
+
+Set `E2E_PORT=8089` (in both commands) to run beside a dev stack already using 8088.
+Keys and the 200 MB fixture are generated on first `up` and are gitignored — nothing
+under `test/e2e/keys/` is ever committed. `retries: 0` is deliberate: a flake here is a
+real race in `internal/jobs`.
+
+The same suite runs in CI as the `e2e` job, gated on the Go and web jobs passing.

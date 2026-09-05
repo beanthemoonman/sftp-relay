@@ -204,32 +204,32 @@ func (p *Pool) dial(ctx context.Context, s db.Server) (*conn, error) {
 	}
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := rawConn.SetDeadline(deadline); err != nil {
-			rawConn.Close()
+			_ = rawConn.Close()
 			return nil, fmt.Errorf("sftpclient: set deadline for %s: %w", addr, err)
 		}
 	}
 	sshConn, chans, reqs, err := ssh.NewClientConn(rawConn, addr, cfg)
 	if err != nil {
-		rawConn.Close()
+		_ = rawConn.Close()
 		return nil, fmt.Errorf("sftpclient: ssh handshake with %s: %w", addr, err)
 	}
 	// The handshake deadline must not outlive the handshake itself.
 	if err := rawConn.SetDeadline(time.Time{}); err != nil {
-		sshConn.Close()
+		_ = sshConn.Close()
 		return nil, fmt.Errorf("sftpclient: clear deadline for %s: %w", addr, err)
 	}
 	client := ssh.NewClient(sshConn, chans, reqs)
 
 	sc, err := sftp.NewClient(client)
 	if err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("sftpclient: open sftp subsystem on %s: %w", addr, err)
 	}
 
 	if s.HostKey == "" && observed != "" {
 		if err := p.store.SetServerHostKey(ctx, s.ID, observed); err != nil {
-			sc.Close()
-			client.Close()
+			_ = sc.Close()
+			_ = client.Close()
 			return nil, fmt.Errorf("sftpclient: record host key for %s: %w", s.Host, err)
 		}
 		slog.Info("sftpclient: recorded host key on first connect", "server_id", s.ID, "host", s.Host)
@@ -255,6 +255,11 @@ func authMethods(s db.Server) ([]ssh.AuthMethod, error) {
 			// The error text from x/crypto never contains key material.
 			return nil, fmt.Errorf("sftpclient: parse private key for %q: %w", s.Name, err)
 		}
+		// The fingerprint is public by definition, and without it a rejected key
+		// is undiagnosable — you cannot tell which key the server refused.
+		slog.Info("sftpclient: offering public key", "server", s.Name,
+			"type", signer.PublicKey().Type(),
+			"fingerprint", ssh.FingerprintSHA256(signer.PublicKey()))
 		return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil
 	default:
 		return nil, fmt.Errorf("sftpclient: server %q has unknown auth_type %q", s.Name, s.AuthType)

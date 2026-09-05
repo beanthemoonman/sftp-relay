@@ -52,7 +52,7 @@ func TestLoad(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, k := range []string{"PORT", "DB_PATH", "AUTH_USER", "AUTH_PASS", "NAS_SSH_KEY_PATH", "LOG_LEVEL"} {
 				t.Setenv(k, "")
-				os.Unsetenv(k)
+				_ = os.Unsetenv(k)
 			}
 			for k, v := range tt.preset {
 				t.Setenv(k, v)

@@ -1,0 +1,76 @@
+# The real topology, minus the hardware: sftp-source stands in for a remote SFTP
+# server, fake-nas for the Synology, relay is the shipped image itself.
+name: sftp-relay-e2e
+
+services:
+  # Keys live in a bind mount, not a volume, because global-setup.ts has to read
+  # the remote private key from the host to POST it to /api/servers. The NAS host
+  # key is generated here too, so recreating the container does not look like an
+  # attack to the relay's host-key pinning.
+  #
+  # Only directories are bind-mounted from ./keys: compose creates a missing bind
+  # source as a *directory*, and every container is created before keygen runs,
+  # so mounting ./keys/nas_key directly would hand the relay an empty folder.
+  keygen:
+    image: alpine:3.21
+    volumes:
+      - ./keys:/keys
+    command: >
+      sh -ec 'apk add --no-cache openssh-keygen >/dev/null;
+      mkdir -p /keys/pub;
+      for k in nas_key remote_key nas_hostkey; do
+        [ -f /keys/$$k ] || ssh-keygen -q -t ed25519 -N "" -C $$k -f /keys/$$k;
+      done;
+      cp /keys/remote_key.pub /keys/pub/remote_key.pub;
+      chmod -R 644 /keys/*.pub /keys/nas_key /keys/remote_key /keys/nas_hostkey;
+      chmod 755 /keys/pub'
+
+  seed:
+    image: alpine:3.21
+    volumes:
+      - source-tree:/upload
+      - ./fixtures/seed.sh:/seed.sh:ro
+    command: sh /seed.sh
+
+  sftp-source:
+    image: atmoz/sftp:alpine
+    depends_on:
+      keygen: {condition: service_completed_successfully}
+      seed: {condition: service_completed_successfully}
+    volumes:
+      - source-tree:/home/keyuser/upload
+      - source-tree:/home/passuser/upload
+      - ./keys/pub:/home/keyuser/.ssh/keys:ro
+    command: keyuser::1001 passuser:passpw:1002
+
+  fake-nas:
+    build: ./fake-nas
+    depends_on:
+      keygen: {condition: service_completed_successfully}
+    volumes:
+      - ./keys:/keys:ro
+      - nas-media:/volume1/media
+
+  relay:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+      args:
+        TARGETARCH: amd64
+    depends_on:
+      keygen: {condition: service_completed_successfully}
+    ports:
+      - "${E2E_PORT:-8088}:80"
+    environment:
+      AUTH_USER: e2e
+      AUTH_PASS: e2e-pass
+      NAS_SSH_KEY_PATH: /keys/nas_key
+      LOG_LEVEL: debug
+    volumes:
+      - ./keys:/keys:ro
+      - relay-data:/data
+
+volumes:
+  source-tree:
+  nas-media:
+  relay-data:

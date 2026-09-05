@@ -392,14 +392,26 @@ func TestProbeLftpCachesThePath(t *testing.T) {
 }
 
 func TestProbeLftpMissingGivesRemediation(t *testing.T) {
-	c, _, fake := setup(t)
+	c, store, fake := setup(t)
+	ctx := context.Background()
+	if err := store.SetSettings(ctx, map[string]string{"lftp_path": "/opt/bin/lftp"}); err != nil {
+		t.Fatal(err)
+	}
 	fake.execOutput = "\n"
-	_, err := c.ProbeLftp(context.Background())
+	_, err := c.ProbeLftp(ctx)
 	if err == nil {
 		t.Fatal("want an error when lftp is absent")
 	}
 	if !strings.Contains(err.Error(), "opkg install lftp") {
 		t.Errorf("error = %q, want installation guidance", err)
+	}
+	// A stale cached path must not survive a failed probe, or jobs keep hitting 127.
+	s, err := store.Settings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s["lftp_path"] != "" {
+		t.Errorf("stale lftp_path kept: %q", s["lftp_path"])
 	}
 }
 
@@ -477,5 +489,29 @@ func TestMissingKeyFileIsReported(t *testing.T) {
 	if _, err := c.Browse(ctx, "/volume1/media"); err == nil ||
 		!strings.Contains(err.Error(), "parsing ssh key") {
 		t.Errorf("error = %v, want a parse error", err)
+	}
+}
+
+func TestShellPathResolvesAnSFTPChroot(t *testing.T) {
+	c, _, fake := setup(t)
+	ctx := context.Background()
+
+	fake.execOutput = "/volume2\n"
+	if got := c.ShellPath(ctx, "/MoonStorage2/tmp/x"); got != "/volume2/MoonStorage2/tmp/x" {
+		t.Errorf("ShellPath = %q", got)
+	}
+	// Cached per share: a second call must not re-probe.
+	fake.execOutput = "/volume9\n"
+	if got := c.ShellPath(ctx, "/MoonStorage2/other"); got != "/volume2/MoonStorage2/other" {
+		t.Errorf("cached ShellPath = %q", got)
+	}
+	// A different share resolves independently.
+	if got := c.ShellPath(ctx, "/Backups/x"); got != "/volume9/Backups/x" {
+		t.Errorf("second share = %q", got)
+	}
+	// No chroot: the path is its own answer.
+	fake.execOutput = "\n"
+	if got := c.ShellPath(ctx, "/tmp/job-1"); got != "/tmp/job-1" {
+		t.Errorf("unchrooted = %q", got)
 	}
 }

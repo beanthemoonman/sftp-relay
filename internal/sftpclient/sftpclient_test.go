@@ -134,9 +134,10 @@ func setup(t *testing.T, hostKey string) (*Pool, *db.DB, db.Server) {
 	t.Helper()
 	s := startServer(t)
 	store := newStore(t)
-	if hostKey == "wrong" {
+	switch hostKey {
+	case "wrong":
 		hostKey = "ssh-ed25519 AAAAsomethingelse"
-	} else if hostKey == "pinned" {
+	case "pinned":
 		hostKey = s.hostKey
 	}
 	row := db.Server{

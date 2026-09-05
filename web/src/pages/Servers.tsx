@@ -69,7 +69,7 @@ function ServerRow({
   });
 
   return (
-    <Card className="space-y-2">
+    <Card className="space-y-2" data-testid="server" data-name={server.name}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">{server.name}</div>

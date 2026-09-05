@@ -57,7 +57,6 @@ type tools struct{ lftp, sshpass string }
 // workspace is the rendered, credential-bearing content of a job's temp dir
 // plus the credential-free command that runs it.
 type workspace struct {
-	dir   string
 	files []genFile
 	cmd   string
 }
@@ -65,7 +64,7 @@ type workspace struct {
 // render builds the whole workspace as pure data, so the escaping, the script
 // shape and the "no credentials on the command line" rule are all unit-testable
 // without a NAS in the loop.
-func render(spec TransferSpec, dir string, t tools) (workspace, error) {
+func render(spec TransferSpec, stage, dir string, t tools) (workspace, error) {
 	if t.lftp == "" {
 		return workspace{}, errors.New("nas: lftp path is not known yet")
 	}
@@ -158,12 +157,22 @@ func render(spec TransferSpec, dir string, t tools) (workspace, error) {
 
 	// POSIX sh — Synology's default shell is ash. lftp runs in the background so
 	// its own pid lands in the pidfile and cancel can TERM it directly; the EXIT
-	// trap then removes the workspace on every ordinary exit path.
+	// trap then removes both directories on every ordinary exit path.
+	//
+	// Two directories, because the staging one is reachable over SFTP but sits in
+	// a Synology share, whose ACLs quietly override chmod and leave every file
+	// world-readable — and ssh ignores a private key it can read like that. The
+	// credentials are copied into a real 0700 dir outside the share first.
 	run := "#!/bin/sh\n" +
+		"s=" + shQuote(stage) + "\n" +
 		"d=" + shQuote(dir) + "\n" +
-		"cleanup() { rm -rf \"$d\"; }\n" +
+		"cleanup() { rm -rf \"$d\" \"$s\"; }\n" +
 		"trap cleanup EXIT INT TERM HUP\n" +
 		"exec 2>&1\n" +
+		"rm -rf \"$d\" && mkdir -p \"$d\" && chmod 700 \"$d\" || exit 1\n" +
+		"cp \"$s\"/cmds \"$s\"/known_hosts \"$d\"/ || exit 1\n" +
+		"for f in key pass; do [ -f \"$s/$f\" ] && cp \"$s/$f\" \"$d/$f\"; done\n" +
+		"chmod 600 \"$d\"/* || exit 1\n" +
 		shQuote(t.lftp) + " -f \"$d/cmds\" &\n" +
 		"p=$!\n" +
 		"echo \"$p\" > \"$d/pid\"\n" +
@@ -172,9 +181,8 @@ func render(spec TransferSpec, dir string, t tools) (workspace, error) {
 	files = append(files, genFile{name: "run.sh", mode: 0o700, body: []byte(run)})
 
 	return workspace{
-		dir:   dir,
 		files: files,
-		cmd:   "/bin/sh " + shQuote(path.Join(dir, "run.sh")),
+		cmd:   "/bin/sh " + shQuote(path.Join(stage, "run.sh")),
 	}, nil
 }
 
@@ -199,7 +207,7 @@ func decryptKey(privateKey, passphrase string) ([]byte, error) {
 		if _, err := ssh.ParsePrivateKey([]byte(privateKey)); err != nil {
 			return nil, fmt.Errorf("nas: parsing private key: %w", err)
 		}
-		return []byte(privateKey), nil
+		return normalizePEM([]byte(privateKey)), nil
 	}
 	raw, err := ssh.ParseRawPrivateKeyWithPassphrase([]byte(privateKey), []byte(passphrase))
 	if err != nil {
@@ -210,7 +218,17 @@ func decryptKey(privateKey, passphrase string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("nas: re-encoding private key: %w", err)
 	}
-	return pem.EncodeToMemory(block), nil
+	return normalizePEM(pem.EncodeToMemory(block)), nil
+}
+
+// normalizePEM makes a stored key acceptable to OpenSSH on the NAS. Go's parser
+// happily accepts CRLF line endings and a missing final newline — a key pasted
+// into the browser form usually has both — while ssh rejects the file outright
+// with "invalid format" and falls back to no authentication at all.
+func normalizePEM(b []byte) []byte {
+	b = bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
+	b = bytes.ReplaceAll(b, []byte("\r"), []byte("\n"))
+	return append(bytes.TrimRight(b, "\n"), '\n')
 }
 
 // lftpQuote wraps a value for lftp's tokeniser, which understands backslash
@@ -233,12 +251,19 @@ func shQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// WorkspaceDir is where a job's ephemeral files live on the NAS.
+// WorkspaceDir is the staging directory a job's files are uploaded to over SFTP.
+// It has to sit inside a share, because that is all the SFTP chroot can reach.
 func WorkspaceDir(tmp string, jobID int64) string {
 	if strings.TrimSpace(tmp) == "" {
 		tmp = "/tmp"
 	}
 	return path.Join(tmp, fmt.Sprintf("job-%d", jobID))
+}
+
+// RuntimeDir is where the job actually runs from: a plain shell path outside any
+// share, so 0700 means 0700 and ssh will accept the key it holds.
+func RuntimeDir(jobID int64) string {
+	return fmt.Sprintf("/tmp/sftp-relay-job-%d", jobID)
 }
 
 func (c *Client) tools(ctx context.Context) (tools, string, error) {
@@ -266,26 +291,31 @@ func (c *Client) Transfer(ctx context.Context, spec TransferSpec, onLine func(st
 		return -1, err
 	}
 	dir := WorkspaceDir(tmp, spec.JobID)
-	ws, err := render(spec, dir, t)
+	// The script and the paths inside it are read by a shell on the NAS, which
+	// does not see the SFTP chroot we wrote them through.
+	spec.Dest = c.ShellPath(ctx, spec.Dest)
+	ws, err := render(spec, c.ShellPath(ctx, dir), RuntimeDir(spec.JobID), t)
 	if err != nil {
 		return -1, err
 	}
-	if err := c.writeWorkspace(ctx, ws); err != nil {
+	if err := c.writeWorkspace(ctx, dir, ws.files); err != nil {
 		return -1, err
 	}
 	return c.stream(ctx, ws.cmd, onLine)
 }
 
-func (c *Client) writeWorkspace(ctx context.Context, ws workspace) error {
+// writeWorkspace writes the rendered files over SFTP. dir is the SFTP-visible
+// path, which is not necessarily the one the script itself refers to.
+func (c *Client) writeWorkspace(ctx context.Context, dir string, files []genFile) error {
 	return c.do(ctx, func(sc *sftp.Client) error {
-		if err := sc.MkdirAll(ws.dir); err != nil {
-			return fmt.Errorf("nas: creating workspace %s: %w", ws.dir, err)
+		if err := sc.MkdirAll(dir); err != nil {
+			return fmt.Errorf("nas: creating workspace %s: %w", dir, err)
 		}
-		if err := sc.Chmod(ws.dir, 0o700); err != nil {
-			return fmt.Errorf("nas: securing workspace %s: %w", ws.dir, err)
+		if err := sc.Chmod(dir, 0o700); err != nil {
+			return fmt.Errorf("nas: securing workspace %s: %w", dir, err)
 		}
-		for _, f := range ws.files {
-			p := path.Join(ws.dir, f.name)
+		for _, f := range files {
+			p := path.Join(dir, f.name)
 			fh, err := sc.Create(p)
 			if err != nil {
 				return fmt.Errorf("nas: creating %s: %w", p, err)
@@ -343,15 +373,20 @@ func (c *Client) stream(ctx context.Context, cmd string, onLine func(string)) (i
 	if err != nil {
 		return -1, fmt.Errorf("nas: stdout pipe: %w", err)
 	}
-	sess.Stderr = io.Discard // run.sh already folds stderr into stdout
+	// run.sh folds its own stderr into stdout, but anything that fails before it
+	// starts — a missing script, a shell that cannot open it — only ever speaks on
+	// stderr. Discarding that hid a "No such file or directory" behind a bare 127.
+	errPipe, err := sess.StderrPipe()
+	if err != nil {
+		return -1, fmt.Errorf("nas: stderr pipe: %w", err)
+	}
 	if err := sess.Start(cmd); err != nil {
 		return -1, fmt.Errorf("nas: starting remote command: %w", err)
 	}
 
-	scanned := make(chan struct{})
-	go func() {
-		defer close(scanned)
-		sc := bufio.NewScanner(out)
+	scan := func(r io.Reader, done chan<- struct{}) {
+		defer close(done)
+		sc := bufio.NewScanner(r)
 		sc.Buffer(make([]byte, 0, 8*1024), 64*1024)
 		sc.Split(scanLines)
 		for sc.Scan() {
@@ -359,7 +394,10 @@ func (c *Client) stream(ctx context.Context, cmd string, onLine func(string)) (i
 				onLine(line)
 			}
 		}
-	}()
+	}
+	scanned, scannedErr := make(chan struct{}), make(chan struct{})
+	go scan(out, scanned)
+	go scan(errPipe, scannedErr)
 
 	waited := make(chan error, 1)
 	go func() { waited <- sess.Wait() }()
@@ -373,6 +411,7 @@ func (c *Client) stream(ctx context.Context, cmd string, onLine func(string)) (i
 		return -1, fmt.Errorf("nas: transfer: %w", ctx.Err())
 	case err := <-waited:
 		<-scanned
+		<-scannedErr
 		var exit *ssh.ExitError
 		if errors.As(err, &exit) {
 			return exit.ExitStatus(), nil
@@ -402,11 +441,7 @@ func scanLines(data []byte, atEOF bool) (int, []byte, error) {
 // Cancel sends TERM to the lftp recorded in the job's pidfile. Closing the SSH
 // session does not reliably kill it, which is the whole reason for the pidfile.
 func (c *Client) Cancel(ctx context.Context, jobID int64) error {
-	_, tmp, err := c.tools(ctx)
-	if err != nil {
-		return err
-	}
-	pidFile := path.Join(WorkspaceDir(tmp, jobID), "pid")
+	pidFile := path.Join(RuntimeDir(jobID), "pid")
 	cmd := "p=$(cat " + shQuote(pidFile) + " 2>/dev/null); " +
 		"[ -n \"$p\" ] && kill -TERM \"$p\" 2>/dev/null; true"
 	if _, err := c.Run(ctx, cmd); err != nil {
@@ -425,7 +460,8 @@ func (c *Client) Sweep(ctx context.Context) error {
 	if strings.TrimSpace(tmp) == "" {
 		tmp = "/tmp"
 	}
-	if _, err := c.Run(ctx, "rm -rf "+shQuote(tmp)+"/job-*; true"); err != nil {
+	tmp = c.ShellPath(ctx, tmp)
+	if _, err := c.Run(ctx, "rm -rf "+shQuote(tmp)+"/job-* /tmp/sftp-relay-job-*; true"); err != nil {
 		return fmt.Errorf("nas: sweeping stale workspaces: %w", err)
 	}
 	slog.Info("nas: swept stale job workspaces", "tmp", tmp)
@@ -439,6 +475,12 @@ func (c *Client) Size(ctx context.Context, p string) (int64, error) {
 	err := c.do(ctx, func(sc *sftp.Client) error {
 		total = 0
 		fi, err := sc.Stat(p)
+		if errors.Is(err, os.ErrNotExist) {
+			// xfer:use-temp-file means an in-flight file is still called
+			// ".in.<name>"; without this the progress bar sits at zero until
+			// lftp renames it at the very end.
+			fi, err = sc.Stat(path.Join(path.Dir(p), ".in."+path.Base(p)))
+		}
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil // nothing transferred yet is not an error
@@ -472,8 +514,9 @@ func (c *Client) Size(ctx context.Context, p string) (int64, error) {
 // ProbeSSHPass caches sshpass's absolute path, needed only for password-auth
 // remote servers. Its absence is not an error until such a job actually runs.
 func (c *Client) ProbeSSHPass(ctx context.Context) (string, error) {
-	out, err := c.Run(ctx, "command -v sshpass 2>/dev/null || "+
-		"{ [ -x /opt/bin/sshpass ] && echo /opt/bin/sshpass; }; true")
+	out, err := c.Run(ctx, "for s in sshpass /opt/bin/sshpass; do "+
+		"p=$(command -v \"$s\" 2>/dev/null) && \"$p\" -V >/dev/null 2>&1 "+
+		"&& { echo \"$p\"; exit 0; }; done; true")
 	if err != nil {
 		return "", err
 	}
@@ -484,6 +527,9 @@ func (c *Client) ProbeSSHPass(ctx context.Context) (string, error) {
 			}
 			return line, nil
 		}
+	}
+	if err := c.store.SetSettings(ctx, map[string]string{"sshpass_path": ""}); err != nil {
+		return "", fmt.Errorf("nas: clearing stale sshpass path: %w", err)
 	}
 	return "", nil
 }

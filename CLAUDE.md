@@ -84,12 +84,17 @@ Per job the worker does:
 2. Pre-compute the total byte count via `pkg/sftp` (stat for a file, walk for a
    directory). This is what makes an accurate progress bar possible.
 3. Open an SSH connection to the NAS.
-4. SFTP an ephemeral key file (`0600`) and a generated lftp script into `$NAS_TMP/job-<id>/`.
+4. SFTP an ephemeral key file and a generated lftp script into the **staging** dir
+   `$NAS_TMP/job-<id>/`, then have the runner copy them into a **runtime** dir
+   `/tmp/sftp-relay-job-<id>` at `0700`/`0600`. Two directories because SFTP can only
+   reach paths inside a share, and share ACLs silently override `chmod` — ssh refuses
+   a private key it can read as world-readable.
 5. `ssh nas 'sh -c "trap cleanup EXIT; echo $$ > pidfile; lftp -f script"'` as a
    **one-shot exec per job** — no persistent shell.
-6. Stream combined stdout/stderr back over the session, parse it for progress, and
-   fall back to polling destination size over SFTP if parsing yields nothing for
-   ~10 s (lftp output format varies by version).
+6. Stream stdout *and* stderr back over the session, parse for progress, and fall back
+   to polling destination size over SFTP if parsing yields nothing for ~10 s (lftp
+   output format varies by version). `xfer:use-temp-file` means the in-flight file is
+   `.in.<name>`, so the size poll looks there too.
 7. Record exit code, final byte count, duration.
 
 Command shapes:
@@ -112,13 +117,25 @@ avoids the dependency and is the preferred setup. A passphrase-protected key is
 decrypted on the Pi and written to the workspace unencrypted — ssh on the NAS cannot
 be prompted — so the passphrase itself never leaves the Pi.
 
+**SFTP chroot vs. shell paths:** Synology chroots the SFTP subsystem to the share
+root, so a path the browser and `pkg/sftp` see (`/MoonStorage2/x`) is not the path a
+shell on the NAS sees (`/volume2/MoonStorage2/x`). `nas.ShellPath` resolves the prefix
+once per share and caches it; every generated shell command — the job script, its
+destination, cancel, the workspace sweep — goes through it, while everything spoken
+over SFTP keeps the chroot path. Getting this wrong fails silently: `rm -rf` on a
+nonexistent path succeeds and `sh` on a missing script exits 127.
+
+**Key normalisation:** stored private keys are run through `normalizePEM` before
+reaching the NAS. Go's parser accepts CRLF and a missing final newline; OpenSSH
+rejects the file as "invalid format" and falls back to no authentication.
+
 **Cancellation:** closing the SSH session does not reliably kill `lftp`. The job writes
 its PID to a file; cancel opens a fresh exec and sends `TERM` to that PID.
 
 **Restart recovery:** on boot, any job in `running` is moved to `interrupted`, and
 the scheduler treats `interrupted` as runnable alongside `queued` — so the status
 stays visible in the UI while the job resumes. `pget -c` and `mirror --continue`
-resume rather than restart. A stale-workspace sweep (`rm -rf $NAS_TMP/job-*`) also
+resume rather than restart. A stale-workspace sweep (`rm -rf $NAS_TMP/job-* /tmp/sftp-relay-job-*`) also
 runs at boot, because a SIGKILL outruns the cleanup trap.
 
 **Scheduling:** a single loop ticks once per second, re-reads `concurrency` and
@@ -187,7 +204,37 @@ internal/events      SSE hub
 internal/api         handlers, basic auth middleware, static serving
 web/                 React app (built into web/dist, embedded)
 deploy/              Dockerfile, nginx.conf, docker-compose.yml, .env.example
+test/e2e/            Playwright suite + the three-container stack it drives
 ```
+
+## E2E suite
+
+`test/e2e/` reproduces the whole topology in containers — `sftp-source` (atmoz/sftp),
+`fake-nas` (alpine + sshd + lftp + sshpass) and `relay` (the shipped image) — and drives
+the real UI with Playwright. `E2E_PORT=8089 docker compose up -d --build` then
+`E2E_PORT=8089 npx playwright test`; omit `E2E_PORT` to use 8088. `docker compose down -v`
+between runs: the resume and cleanup specs are stateful.
+
+Things worth knowing before touching it:
+
+- `global-setup.ts` configures the app through its own API and then **restarts the relay
+  once**, because the container boots before the NAS is configured and the startup tool
+  probe skips itself. No spec touches SQLite.
+- Keys come from a `keygen` init service into the bind-mounted `test/e2e/keys`. Only
+  directories are bind-mounted from there — compose turns a missing bind source into a
+  directory, and containers are created before keygen runs.
+- lftp lives at `/opt/bin/lftp` on `fake-nas`, off the non-interactive `PATH`, so the
+  startup probe is exercised rather than trivially satisfied.
+- `fake-nas/lftp-wrapper.sh` is a shim in front of the real binary: when
+  `/tmp/e2e-throttle` exists it prepends `set net:limit-total-rate`. Two containers on a
+  loopback move 200 MB in under a second, which would leave the progress, cancel and
+  restart-resume scenarios nothing in flight. `tc` is not available — Docker Desktop's
+  kernel has no `act_police` module.
+- The fake NAS does **not** chroot its SFTP subsystem, so `nas.ShellPath` resolves to
+  identity there and that path stays covered by unit tests and manual real-NAS runs only.
+- The UI carries a handful of `data-testid` hooks purely for this suite: the job card
+  (`data-job-id`/`data-status`/`data-percent`), the server row, the two browse panes, the
+  selection bar and the SSE indicator.
 
 ## Conventions
 

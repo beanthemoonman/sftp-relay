@@ -48,6 +48,7 @@ func env(key, def string) string {
 // loadDotEnv understands KEY=value lines, # comments and optional quotes.
 // ponytail: hand-rolled instead of a dependency; it is 20 lines.
 func loadDotEnv(path string) error {
+	// #nosec G304 -- the .env path is operator-supplied config, not user input.
 	f, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return nil

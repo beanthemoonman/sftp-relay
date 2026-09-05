@@ -1,3 +1,7 @@
 # lftp output fixtures are byte-exact: they carry lone CR separators and
 # non-UTF-8 filenames that line-ending normalisation would destroy.
 internal/nas/testdata/** -text
+
+# Scripts that run inside Linux containers must keep LF endings on a Windows checkout.
+test/e2e/**/*.sh text eol=lf
+deploy/entrypoint.sh text eol=lf

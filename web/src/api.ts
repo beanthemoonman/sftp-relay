@@ -103,8 +103,8 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
   return res.status === 204 ? (null as T) : ((await res.json()) as T);
 }
 
-const send = (method: string) => (url: string, body?: unknown) =>
-  req<any>(url, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+const send = (method: string) => <T,>(url: string, body?: unknown) =>
+  req<T>(url, { method, body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const api = {
   get: <T,>(url: string) => req<T>(url),

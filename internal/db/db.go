@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	// pure-Go sqlite driver: no CGO, so the arm64 cross-build works.
 	_ "modernc.org/sqlite"
 )
 
@@ -71,12 +72,12 @@ func (d *DB) migrate(ctx context.Context) error {
 			return fmt.Errorf("db: begin migration %s: %w", name, err)
 		}
 		if _, err := tx.ExecContext(ctx, string(body)); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("db: apply migration %s: %w", name, err)
 		}
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO schema_migrations (name) VALUES (?)`, name); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("db: record migration %s: %w", name, err)
 		}
 		if err := tx.Commit(); err != nil {

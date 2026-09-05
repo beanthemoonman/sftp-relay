@@ -5,7 +5,7 @@ import type { Job } from "./api";
 const DELTA = ["job.created", "job.progress", "job.done", "job.failed"];
 const LOG_LINES = 500; // matches the server-side ring buffer's spirit: bounded
 
-type Frame = { type: string; job_id?: number; data?: any };
+type Frame = { type: string; job_id?: number; data?: unknown };
 
 /** upsert keeps the list newest-first and never duplicates a job row. */
 export function upsert(prev: Job[], job: Job): Job[] {

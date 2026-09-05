@@ -1,0 +1,29 @@
+version: "2"
+linters:
+  enable:
+    - errcheck
+    - staticcheck
+    - govet
+    - ineffassign
+    - revive
+    - gosec
+  exclusions:
+    paths:
+      - web/node_modules
+    rules:
+      # ponytail: `defer x.Close()` cannot take the `_ =` the house style asks for
+      # without wrapping every one in a closure. The errors are genuinely nothing
+      # to act on; non-deferred calls are still checked.
+      - source: '^\s*defer '
+        linters: [errcheck]
+      # revive's doc-comment rules: this is a single-binary app, not a library.
+      - text: "should have comment or be unexported"
+        linters: [revive]
+      - text: "should have a package comment"
+        linters: [revive]
+      - path: _test\.go
+        linters: [gosec]
+      # test teardown: t.Cleanup(func() { x.Close() })
+      - path: _test\.go
+        source: 'Close\(\)'
+        linters: [errcheck]

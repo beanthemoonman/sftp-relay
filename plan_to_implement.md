@@ -330,11 +330,61 @@ Go-side tests assert the static routes, the auth on them, the SPA fallback and t
   and the UI renders the server's message inline on every mutation and query rather
   than swallowing it
 
+### First real transfer against the live Synology (2026-09-05)
+
+Phase 5's exit test finally ran against the real NAS rather than the fake one, and
+four separate defects had to fall before a byte moved. Recorded here because each was
+invisible to the unit and integration suites:
+
+- [x] SFTP is chrooted to the share root on the Synology, so `/MoonStorage2/x` over
+  SFTP is `/volume2/MoonStorage2/x` to a shell. Every generated shell command aimed
+  at a path that did not exist; the job script exited 127 and the workspace sweep
+  silently deleted nothing. `nas.ShellPath` resolves and caches the per-share prefix
+- [x] Share ACLs override `chmod`, leaving the private key world-readable, which ssh
+  refuses to use. The job now stages over SFTP and copies into a real `0700`
+  `/tmp/sftp-relay-job-<id>` before lftp runs
+- [x] Stored keys lacked a trailing newline (and can carry CRLF), which Go parses and
+  OpenSSH rejects outright. `normalizePEM` fixes both on the way out
+- [x] `sess.Stderr` was discarded, so all of the above surfaced as a bare exit code
+  with an empty job log. Both streams are now folded into the log
+- [x] `xfer:use-temp-file` meant the size-poll fallback watched a name that does not
+  exist until the transfer ends, pinning the progress bar at zero. `nas.Size` falls
+  back to the `.in.<name>` temp file
+- [x] **Exit test passed:** a 635 MB file transferred from the real remote SFTP server
+  to the real Synology, exit code 0, 100%, checksum-sized match on disk, both
+  workspaces removed and no orphaned lftp process
+
+### End-to-end suite — **DONE (2026-09-05)**
+
+`test/e2e/` per `e2e_plan.md`. Three containers (`sftp-source`, `fake-nas`, `relay`),
+Playwright against the real UI through the container's nginx, no mocked API.
+
+- [x] **A — stack up:** compose file, `fake-nas` image, seed script, Playwright config,
+  `global-setup.ts`, `auth` / `servers` / `browse` specs
+- [x] **B — transfers:** single file with observed mid-flight progress and a matching
+  sha256 on the fake-NAS volume, directory mirror with nesting, five-item batch, plus
+  the zero-byte and spaces-and-unicode filenames
+- [x] **C — lifecycle:** concurrency capped at the setting with queue positions shown,
+  cancel with no surviving lftp and no workspace, restart-resume proving `pget -c`
+  resumes rather than truncating, failure surfacing with retry, unreachable NAS
+- [x] **D — resilience and cleanup:** SSE kill/reconnect/resync with the disconnected
+  indicator, two browser contexts on the same live progress, the 375px flow with no
+  horizontal scroll, and a final assertion of zero orphaned workspaces, processes and
+  SSH connections
+- [x] **E — CI:** an `e2e` job in `.github/workflows/ci.yml` gated on `go` and `web`
+- [x] **Exit test passed:** 19 tests, three consecutive green runs with
+  `docker compose down -v` between each; `git status` clean afterwards
+
+Two things the suite deliberately does not prove, both recorded in `e2e_plan.md`: the
+fake NAS does not chroot its SFTP subsystem, so `nas.ShellPath` resolves to identity and
+stays covered by unit tests and the real Synology; and a loopback moves 200 MB in under
+a second, so the in-flight scenarios are slowed by an lftp shim rather than by real
+bandwidth.
+
 **Outstanding and deliberately not claimed:** the load-time RSS measurement, the Pi
 deployment and 24-hour soak, `golangci-lint`/`gosec`/`govulncheck` (still not
-installed on this machine), the Playwright E2E suite from the definition of done, and
-every manual item — real Synology, real remote SFTP server, a phone on the LAN, a
-1 GB transfer.
+installed on this machine), and every manual item — real Synology, real remote SFTP
+server, a phone on the LAN, a 1 GB transfer.
 
 ## Risk register
 

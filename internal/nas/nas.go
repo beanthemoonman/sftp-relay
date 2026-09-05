@@ -32,7 +32,7 @@ var ErrHostKeyChanged = errors.New("nas: host key changed")
 // lftpCandidates are the usual Synology locations. `command -v` is tried first;
 // non-interactive SSH on Synology has a famously thin PATH.
 var lftpCandidates = []string{
-	"/opt/bin/lftp", "/usr/local/bin/lftp", "/usr/bin/lftp",
+	"/opt/bin/lftp", "/usr/local/bin/lftp", "/usr/bin/lftp", "/bin/lftp",
 	"/volume1/@entware/opt/bin/lftp", "/usr/local/lftp/bin/lftp",
 }
 
@@ -58,9 +58,10 @@ type Client struct {
 	keyPath string
 	timeout time.Duration
 
-	mu   sync.Mutex
-	ssh  *ssh.Client
-	sftp *sftp.Client
+	mu       sync.Mutex
+	ssh      *ssh.Client
+	sftp     *sftp.Client
+	prefixes map[string]string // share name -> shell path prefix
 
 	closed bool
 	stop   chan struct{}
@@ -70,11 +71,12 @@ type Client struct {
 // New starts the keepalive loop. Close stops it.
 func New(store *db.DB, keyPath string, timeout time.Duration) *Client {
 	c := &Client{
-		store:   store,
-		keyPath: keyPath,
-		timeout: timeout,
-		stop:    make(chan struct{}),
-		done:    make(chan struct{}),
+		store:    store,
+		keyPath:  keyPath,
+		timeout:  timeout,
+		stop:     make(chan struct{}),
+		done:     make(chan struct{}),
+		prefixes: map[string]string{},
 	}
 	go c.keepalive()
 	return c
@@ -210,31 +212,31 @@ func (c *Client) connect(ctx context.Context) (*sftp.Client, error) {
 	}
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := raw.SetDeadline(deadline); err != nil {
-			raw.Close()
+			_ = raw.Close()
 			return nil, fmt.Errorf("nas: set deadline for %s: %w", addr, err)
 		}
 	}
 	sshConn, chans, reqs, err := ssh.NewClientConn(raw, addr, clientCfg)
 	if err != nil {
-		raw.Close()
+		_ = raw.Close()
 		return nil, fmt.Errorf("nas: ssh handshake with %s: %w", addr, err)
 	}
 	if err := raw.SetDeadline(time.Time{}); err != nil {
-		sshConn.Close()
+		_ = sshConn.Close()
 		return nil, fmt.Errorf("nas: clear deadline for %s: %w", addr, err)
 	}
 	client := ssh.NewClient(sshConn, chans, reqs)
 
 	sc, err := sftp.NewClient(client)
 	if err != nil {
-		client.Close()
+		_ = client.Close()
 		return nil, fmt.Errorf("nas: open sftp subsystem on %s: %w", addr, err)
 	}
 
 	if cfg.hostKey == "" && observed != "" {
 		if err := c.store.SetSettings(ctx, map[string]string{"nas_host_key": observed}); err != nil {
-			sc.Close()
-			client.Close()
+			_ = sc.Close()
+			_ = client.Close()
 			return nil, fmt.Errorf("nas: record host key: %w", err)
 		}
 		slog.Info("nas: recorded host key on first connect", "host", cfg.host)
@@ -422,7 +424,7 @@ func (c *Client) Run(ctx context.Context, cmd string) (string, error) {
 	}()
 	select {
 	case <-ctx.Done():
-		sess.Signal(ssh.SIGTERM) //nolint:errcheck // best effort; the session is closed next
+		sess.Signal(ssh.SIGTERM) //nolint:errcheck,gosec // best effort; the session is closed next
 		return "", fmt.Errorf("nas: running command: %w", ctx.Err())
 	case r := <-ch:
 		if r.err != nil {
@@ -435,11 +437,14 @@ func (c *Client) Run(ctx context.Context, cmd string) (string, error) {
 // ProbeLftp finds lftp on the NAS and caches its absolute path in settings.
 // Synology's non-interactive PATH rarely includes Entware, hence the candidates.
 func (c *Client) ProbeLftp(ctx context.Context) (string, error) {
-	cmd := "command -v lftp 2>/dev/null || true"
-	for _, p := range lftpCandidates {
-		cmd += fmt.Sprintf("; [ -x %s ] && echo %s", p, p)
+	// Executability is not enough: an Entware lftp whose libraries are missing
+	// exists, is +x, and still exits 127. Only `lftp -v` actually running proves it.
+	var cmd string
+	for _, p := range append([]string{"lftp"}, lftpCandidates...) {
+		cmd += fmt.Sprintf("p=$(command -v %s 2>/dev/null) && \"$p\" -v >/dev/null 2>&1 "+
+			"&& { echo \"$p\"; exit 0; }; "+"\n", p)
 	}
-	cmd += "; true"
+	cmd += "true"
 	out, err := c.Run(ctx, cmd)
 	if err != nil {
 		return "", err
@@ -453,7 +458,60 @@ func (c *Client) ProbeLftp(ctx context.Context) (string, error) {
 			return line, nil
 		}
 	}
-	return "", fmt.Errorf("nas: lftp not found on the NAS. Install it with Entware "+
-		"(`opkg install lftp`) or a community package, then restart the relay. "+
-		"Looked for `lftp` on PATH and at: %s", strings.Join(lftpCandidates, ", "))
+	// The probe ran and found nothing, so a previously cached path is stale —
+	// leaving it would keep feeding jobs a binary that exits 127.
+	if err := c.store.SetSettings(ctx, map[string]string{"lftp_path": ""}); err != nil {
+		return "", fmt.Errorf("nas: clearing stale lftp path: %w", err)
+	}
+	return "", fmt.Errorf("nas: no working lftp on the NAS — `lftp -v` did not run. "+
+		"Install it with Entware (`opkg install lftp`) or a community package; if it "+
+		"is installed, it is likely missing its shared libraries. Then restart the "+
+		"relay. Looked for `lftp` on PATH and at: %s", strings.Join(lftpCandidates, ", "))
+}
+
+// volumePrefixes are the roots a Synology share can really live under. The empty
+// one comes first so a NAS without an SFTP chroot resolves to itself.
+var volumePrefixes = []string{
+	"", "/volume1", "/volume2", "/volume3", "/volume4", "/volumeUSB1", "/volumeUSB2",
+}
+
+// ShellPath translates an SFTP-visible path into the one a shell on the NAS sees.
+// Synology chroots the SFTP subsystem to the share root, so /MoonStorage2/x over
+// SFTP is /volume2/MoonStorage2/x to lftp — and every shell command we generate
+// (the job script, cancel, the workspace sweep) needs the latter. The answer is
+// cached per share, because two shares can sit on different volumes.
+//
+// An unresolvable path is returned unchanged: the shell then produces its own
+// error, which is more useful than one invented here.
+func (c *Client) ShellPath(ctx context.Context, p string) string {
+	share, _, _ := strings.Cut(strings.TrimPrefix(path.Clean(p), "/"), "/")
+	if share == "" {
+		return p
+	}
+	c.mu.Lock()
+	prefix, ok := c.prefixes[share]
+	c.mu.Unlock()
+	if !ok {
+		var cmd string
+		for _, v := range volumePrefixes {
+			root := v + "/" + share
+			cmd += fmt.Sprintf("[ -e %s ] && { printf '%%s\n' %s; exit 0; };\n",
+				shQuote(root), shQuote(v))
+		}
+		cmd += "true"
+		out, err := c.Run(ctx, cmd)
+		if err != nil {
+			slog.Warn("nas: could not resolve the shell path for a share",
+				"share", share, "err", err)
+			return p
+		}
+		prefix = strings.TrimSpace(out)
+		c.mu.Lock()
+		c.prefixes[share] = prefix
+		c.mu.Unlock()
+		if prefix != "" {
+			slog.Info("nas: share is chrooted for SFTP", "share", share, "shell_prefix", prefix)
+		}
+	}
+	return prefix + p
 }

@@ -54,6 +54,8 @@ export default function App() {
           ))}
         </nav>
         <span
+          data-testid="sse-status"
+          data-connected={connected}
           title={connected ? "Live" : "Disconnected — reconnecting"}
           className={`ml-auto h-2.5 w-2.5 shrink-0 rounded-full sm:ml-2 ${
             connected ? "bg-emerald-500" : "animate-pulse bg-amber-500"

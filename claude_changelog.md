@@ -219,3 +219,219 @@ done:
 Verified: `gofmt -l` clean, `go vet` clean, `go build ./...` clean, `go test
 ./...` green (see `plan_to_implement.md` coverage notes still stand).
 
+
+## Diagnosed live container: SFTP auth rejection and wrong NAS roots
+
+- Inspected the running `sftp-relay` container. Logging is in fact working —
+  `docker logs` carries structured `ERROR` lines for every failed request; they
+  were just buried under nginx access lines. `docker logs sftp-relay 2>&1 | grep '"level"'`
+  isolates them.
+- Verified via `GET /api/servers` that server 1 stores a private key
+  (`has_private_key: true`). It was never lost — the edit form deliberately blanks
+  credential fields and the API treats blank as "keep stored".
+- Added a `slog.Info` in `sftpclient.authMethods` recording the type and
+  SHA256 fingerprint of the public key being offered. A rejected key was
+  previously undiagnosable: the handshake error names no key. Fingerprints are
+  public by definition, so this does not widen the credential-redaction surface.
+- With that in place, confirmed the whatbox failure is remote-side: a valid
+  `ssh-ed25519` key is parsed and offered, and the server refuses it — the
+  matching public key is absent from the remote `authorized_keys`.
+- Confirmed both configured `allowed_dest_roots` (`/volume1/MoonStorage/`,
+  `/volume2/MoonStorage2/`) do not exist on the NAS; NAS browsing fails with
+  `file does not exist` for both. Configuration, not a code fault.
+- Rebuilt and redeployed the image.
+
+## Traced the whatbox auth failure to the wrong key being stored
+
+- Compared the fingerprint now emitted by `sftpclient.authMethods` against local
+  key files. The key stored for the whatbox server is byte-identical to
+  `deploy/nas_key` (`SHA256:Vkx2nmmbt0F+0kYOgDsFkGpaAVctGNbYi+rC/hRt54c`) — the
+  NAS key had been pasted into the remote-server form, so whatbox was being
+  offered a key it has never authorised.
+- The machine holds a second, distinct ed25519 key at `~/.ssh/id_ed25519`
+  (`SHA256:lHnhl/krYIwnd2xKp/PxefApfiFIhGgj7Un34bc9Qjk`), and `known_hosts`
+  carries four whatbox entries, indicating that is the key whatbox knows.
+- Reviewed `updateServer` and `db.UpdateServer`: the update path is correct and
+  persists a non-blank key, so no code fault is implicated. Logs confirm a
+  `server updated` at 16:48:50 followed by a test still offering the NAS key,
+  i.e. the save carried a blank or unchanged key field.
+- No code change this turn. The fingerprint log added previously was what made
+  the misconfiguration visible; it stays.
+
+## Corrected the earlier NAS-roots conclusion
+
+- The previous entry's claim that `/volume1/MoonStorage` and
+  `/volume2/MoonStorage2` do not exist was wrong — both are present over an SSH
+  shell. The failing call is `sc.ReadDir` in `nas.Client.Browse`, which runs over
+  SFTP, while every NAS operation that succeeded (lftp probe, workspace sweep)
+  runs over the exec channel. DSM's SFTP service chroots to the shared folders,
+  so the same directory is addressed as `/MoonStorage` over SFTP. Pending the
+  user's `sftp upmoon@moonstore` output to confirm; if so, `allowed_dest_roots`
+  and `nas_tmp` both need chroot-relative values.
+
+## lftp exits 127 — probe now proves lftp actually runs
+
+- `ProbeLftp` no longer trusts `[ -x path ]`. It runs `lftp -v` for `lftp` on PATH and
+  each Synology candidate, taking the first that actually executes. An Entware binary
+  missing its shared libraries is present and executable and still exits 127 — the old
+  probe cached it happily and every job died with "lftp exited with status 127".
+- A failed probe now clears the cached `lftp_path` (and `ProbeSSHPass` clears
+  `sshpass_path`), so a stale path can't keep feeding jobs a broken binary.
+- `ProbeSSHPass` validates with `sshpass -V` the same way.
+- Error text updated: "no working lftp on the NAS — `lftp -v` did not run", with the
+  missing-shared-libraries hint alongside the `opkg install lftp` remediation.
+- Test: `TestProbeLftpMissingGivesRemediation` now seeds a stale `lftp_path` and
+  asserts the failed probe clears it.
+- Added `/bin/lftp` to `lftpCandidates` — that is where it lives on this Synology
+  (DSM ships it in `/bin`, not under Entware).
+
+## First real transfer against the live Synology — four bugs deep
+
+Deployed with `docker compose up -d --build` (amd64, running on the PC) and drove real
+jobs against the real NAS and the real remote server. Each fix below was found by the
+previous one becoming visible.
+
+1. **SFTP chroot vs. shell paths.** Synology chroots SFTP to the share root, so
+   `/MoonStorage2/lftp-scripts` over SFTP is `/volume2/MoonStorage2/lftp-scripts` to a
+   shell. Every generated shell command pointed at a path that did not exist:
+   `/bin/sh .../run.sh` exited 127 and the boot sweep deleted nothing (three stale
+   workspaces had accumulated). Added `nas.ShellPath`, which probes `/volumeN/<share>`
+   once per share and caches the prefix; wired into the job script, its destination,
+   `Cancel` and `Sweep`. SFTP-side paths are unchanged.
+2. **`sess.Stderr = io.Discard`.** Anything failing before `run.sh`'s `exec 2>&1` — the
+   127 above included — vanished, leaving an empty job log and a bare exit code. Both
+   streams now scan into the log. This is what turned every later step into a
+   one-attempt diagnosis.
+3. **Share ACLs override `chmod`.** The uploaded key came out `-rwxrwxrwx`, and ssh
+   ignores a world-readable private key, so auth failed with `Permission denied
+   (publickey)`. The workspace is now two directories: a staging dir inside the share
+   (all SFTP can reach) and a runtime `/tmp/sftp-relay-job-<id>` created by the script
+   at `0700` with the credentials copied in at `0600`. Both are removed by the trap;
+   the sweep covers both. `Cancel` reads the pidfile from the runtime dir.
+4. **Key format.** The stored key had no trailing newline; OpenSSH answered
+   `Load key: invalid format` and fell through to no authentication. `normalizePEM`
+   strips CRLF and guarantees the final newline on every key written to the NAS.
+5. **Progress pinned at zero.** `xfer:use-temp-file yes` means the destination is
+   `.in.<name>` until the very end, so the size-poll fallback measured a file that did
+   not exist yet. `nas.Size` now falls back to the temp name.
+
+**Verified end to end:** a 635 MB file moved from the remote server to
+`/MoonStorage2/tmp/...`, exit code 0, 100%, full size on disk, both workspaces gone,
+no orphaned lftp process on the NAS.
+
+Tests added: `TestShellPathResolvesAnSFTPChroot` (per-share caching, independent
+shares, unchrooted passthrough), `TestNormalizePEM` (five cases),
+`TestSizeCountsAnInFlightTempFile`. `render` now takes staging and runtime dirs.
+`go build`, `go vet`, `go test ./...` all clean.
+
+Known deviation: files land on the NAS as `-rwxrwxrwx` because the share's ACL wins.
+Not fixed — that is the share's configuration, not ours.
+
+## GitHub CI
+Added `.github/workflows/ci.yml`: a `go` job (gofmt check, `go vet`, `go test -race ./...`,
+CGO-free linux/arm64 build) and a `web` job (`npm ci`, vitest, `vite build` incl. `tsc --noEmit`).
+Left out golangci-lint (no `.golangci.yml` in repo), eslint (not installed despite the npm script),
+and the E2E suite (fake-NAS compose stack doesn't exist yet).
+
+## CI: linting wired in
+- Added `.golangci.yml` (v2 format): errcheck, staticcheck, govet, ineffassign, revive, gosec.
+  Exclusions are narrow: deferred/`t.Cleanup` `Close()` calls, revive's doc-comment rules
+  (single-binary app, not a library), gosec in tests, `web/node_modules`.
+- Fixed what it found for real: `_ =` on the connection-teardown `Close()` calls in
+  `internal/nas/nas.go` and `internal/sftpclient/sftpclient.go`, on `tx.Rollback()` in
+  `internal/db/db.go` and `os.Unsetenv` in `internal/config/config_test.go`; `#nosec G304`
+  justification on the `.env` open; `//nolint:errcheck,gosec` on the best-effort SIGTERM;
+  tagged switch in `sftpclient_test.go`; blank-import comment on the sqlite driver.
+  Repo is now `golangci-lint run` clean.
+- Added eslint to `web` (`eslint`, `@eslint/js`, `typescript-eslint`,
+  `eslint-plugin-react-hooks`) with a flat `eslint.config.js`. Replaced the three
+  production `any`s (`Frame.data` -> `unknown`, `send` -> generic) rather than muting the
+  rule; `react-hooks/set-state-in-effect` is off with a reason, `no-explicit-any` off in tests.
+- CI now runs `golangci-lint-action@v8` and `npm run lint`.
+- Still not in CI: the E2E suite — the `sftp-source` / `fake-nas` / `relay` compose stack
+  and the Playwright specs from the DoD do not exist yet.
+
+## E2E plan
+Wrote `e2e_plan.md` — a handoff document for building the Playwright E2E suite in a fresh
+session: the three-container topology (`sftp-source` / `fake-nas` / `relay`), the file
+layout under `test/e2e/`, fixture tree, API-driven setup (no DB surgery), all 16 DoD
+scenarios grouped into spec files, five increments, the CI job, and the known gotchas
+(ShellPath untested without a chrooted fake NAS, named volume for the restart-resume
+scenario, `.in.<name>` temp files, host-key pinning across `down -v`).
+
+## 2026-09-05 — End-to-end suite (e2e_plan.md, increments A–E)
+
+Built the Playwright E2E suite the definition of done demands, all five increments, and
+proved it with three consecutive clean runs.
+
+**The stack** (`test/e2e/docker-compose.yml`): a `keygen` init service that generates the
+SSH keys into the bind-mounted `test/e2e/keys`, a `seed` init service that generates the
+fixture tree (including the 200 MB blob and a `SHA256SUMS` manifest) into a named volume,
+`sftp-source` (atmoz/sftp, a key user and a password user), `fake-nas` (alpine + sshd +
+lftp + sshpass, `/volume1/media` destination volume) and `relay`, built from
+`deploy/Dockerfile` with `TARGETARCH=amd64`. `E2E_PORT` defaults to 8088 and can be moved
+so the suite runs beside a dev stack.
+
+Four things about the stack are load-bearing and were each learned the hard way:
+
+- Only *directories* are bind-mounted out of `./keys`. Compose creates a missing bind
+  source as a directory, and every container is created before `keygen` runs, so mounting
+  `./keys/nas_key` as a file handed the relay an empty folder.
+- `adduser -D` leaves `!` in `/etc/shadow`, which sshd reads as a locked account and
+  refuses public-key auth for. `sed 's|^nas:!:|nas:*:|'` fixes it.
+- `openssh-server` does not bring the ssh *client*, and lftp reaches `sftp://` by
+  spawning `ssh`. Without `openssh-client` every transfer failed with `sh: ssh: not found`.
+- lftp is moved to `/opt/bin/lftp`, off the non-interactive `PATH`, so the startup probe
+  is exercised rather than trivially satisfied.
+
+**Throttling.** Two containers on a loopback move 200 MB in well under a second, which
+leaves the progress, cancel, restart-resume and multi-client scenarios nothing in flight
+to observe — and `segments=1`, the remedy the plan suggested, does not change that. `tc`
+was tried first and is unavailable: Docker Desktop's kernel ships no `act_police` module.
+`fake-nas/lftp-wrapper.sh` now sits in front of the real binary and prepends
+`set net:limit-total-rate` when `/tmp/e2e-throttle` exists; with no such file it is
+`exec` plus argv and nothing else. `throttle()` / `unthrottle()` drive it from the specs.
+
+**Setup.** `global-setup.ts` configures everything through the app's own API — never
+SQLite — then restarts the relay once, because the container boots before the NAS is
+configured and the startup tool probe skips itself. The restart runs the real boot path:
+pinning `nas_host_key`, sweeping stale workspaces, and resolving lftp off the thin PATH.
+Setup fails loudly there rather than inside the first transfer spec.
+
+**19 tests**, every DoD §2 scenario plus two extras:
+
+- `auth` — 401 on missing, wrong password and wrong user; `/api/health` open; UI served
+- `servers` — CRUD through the form, including the connection test pinning the host key
+- `browse` — three levels deep and back by breadcrumb, directories first, sizes and dates,
+  NAS destination browsing, folder creation, and `../../etc/evil` refused visibly
+- `transfer` — big.bin with progress observed mid-flight and a matching sha256 on the NAS
+  volume, a directory mirror with nesting, a five-item batch, and the zero-byte and
+  spaces-and-unicode filenames
+- `lifecycle` — concurrency capped at 2 with queue positions rendered, cancel leaving no
+  lftp and no workspace, restart-resume proving `pget -c` resumes rather than truncating,
+  a nonexistent path failing readably with retry offered, and a stopped NAS erroring
+  rather than hanging (finishing by proving the boot sweep clears what `docker stop`
+  SIGKILLed past the cleanup trap)
+- `resilience` — the relay restarted under a live stream, the disconnected indicator, the
+  backoff reconnect and the snapshot resync; two browser contexts on the same progress;
+  the 375px browse-to-queue flow with no horizontal scroll and no card behind the tab bar
+- `cleanup` — its own Playwright project, dependent on the rest, asserting zero orphaned
+  workspaces, zero lftp processes and at most the one expected NAS SSH connection
+
+**App changes:** six `data-testid` hooks only — the job card (`data-job-id`,
+`data-status`, `data-percent`), the server row, the two browse panes, the selection bar
+and the SSE indicator. `Card` now forwards arbitrary div props to carry them. No
+behavioural change; no E2E finding required one.
+
+**One phantom bug** cost real time and is worth recording: the cancel spec asserted the
+card turned `cancelled` in place. It does not — `cancelled` is terminal, so the row
+leaves the Queue screen for History. The backend was correct throughout. A second
+false alarm: `pgrep -f lftp.real` matched the `sh -c` that `docker compose exec` runs it
+in; the bracket trick (`'[l]ftp.real'`) fixes it.
+
+**CI:** an `e2e` job in `.github/workflows/ci.yml`, gated on `go` and `web`, Chromium
+only, uploading `test-results/`, the HTML report and container logs on failure.
+
+Updated `CLAUDE.md` (layout plus an E2E section), `README.md` (how to run it),
+`plan_to_implement.md` (the E2E block closed out) and `e2e_plan.md` (boxes ticked plus an
+"as built" section recording every deviation).

@@ -41,7 +41,13 @@ export function JobCard({ job, position }: { job: Job; position?: number }) {
   const terminal = ["done", "failed", "cancelled"].includes(job.status);
 
   return (
-    <Card className="space-y-2">
+    <Card
+      className="space-y-2"
+      data-testid="job"
+      data-job-id={job.id}
+      data-status={job.status}
+      data-percent={job.percent}
+    >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium">
