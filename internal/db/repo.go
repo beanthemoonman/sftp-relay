@@ -292,3 +292,13 @@ func affected(res sql.Result, what string) error {
 	}
 	return nil
 }
+
+// SetServerHostKey records the host key observed on first connect.
+func (d *DB) SetServerHostKey(ctx context.Context, id int64, hostKey string) error {
+	res, err := d.ExecContext(ctx,
+		`UPDATE servers SET host_key = ?, updated_at = datetime('now') WHERE id = ?`, hostKey, id)
+	if err != nil {
+		return fmt.Errorf("db: set server %d host key: %w", id, err)
+	}
+	return affected(res, fmt.Sprintf("server %d", id))
+}

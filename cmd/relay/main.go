@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -13,10 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
+	"sftp-relay/internal/api"
 	"sftp-relay/internal/config"
 	"sftp-relay/internal/db"
+	"sftp-relay/internal/nas"
+	"sftp-relay/internal/sftpclient"
 )
 
 func main() {
@@ -32,6 +32,9 @@ func run() error {
 		return err
 	}
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel})))
+	if cfg.AuthUser == "" || cfg.AuthPass == "" {
+		slog.Warn("AUTH_USER/AUTH_PASS are not set: every authenticated route will return 401")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -50,12 +53,16 @@ func run() error {
 	defer database.Close()
 	slog.Info("database ready", "path", cfg.DBPath)
 
-	r := chi.NewRouter()
-	r.Get("/api/health", health(database))
+	pool := sftpclient.NewPool(database, 2*time.Minute, 15*time.Second)
+	defer pool.Close()
+	nasClient := nas.New(database, cfg.NASSSHKeyPath, 15*time.Second)
+	defer nasClient.Close()
+
+	go probeLftp(ctx, nasClient)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           r,
+		Handler:           api.New(database, pool, nasClient, cfg),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -78,20 +85,16 @@ func run() error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// health reports process liveness plus a real database round-trip.
-func health(database *db.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-		status, code := "ok", http.StatusOK
-		if err := database.PingContext(ctx); err != nil {
-			slog.Error("health: database unreachable", "err", err)
-			status, code = "db unavailable", http.StatusServiceUnavailable
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(code)
-		if err := json.NewEncoder(w).Encode(map[string]string{"status": status}); err != nil {
-			slog.Error("health: write response", "err", err)
-		}
+// probeLftp resolves lftp's absolute path on the NAS and caches it. It runs in
+// the background: a NAS that is off or unconfigured must not stop the UI from
+// coming up, but the failure is logged loudly with the remediation.
+func probeLftp(ctx context.Context, c *nas.Client) {
+	probeCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	switch _, err := c.ProbeLftp(probeCtx); {
+	case errors.Is(err, nas.ErrNotConfigured):
+		slog.Info("NAS is not configured yet; skipping the lftp probe")
+	case err != nil:
+		slog.Error("lftp probe failed; transfers will not run until this is fixed", "err", err)
 	}
 }

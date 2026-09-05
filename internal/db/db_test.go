@@ -50,6 +50,13 @@ func TestOpenIsIdempotent(t *testing.T) {
 	if err := d.SetSettings(ctx, map[string]string{"concurrency": "7"}); err != nil {
 		t.Fatal(err)
 	}
+	var first int
+	if err := d.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&first); err != nil {
+		t.Fatal(err)
+	}
+	if first == 0 {
+		t.Fatal("no migrations were applied")
+	}
 	d.Close()
 
 	again, err := Open(ctx, path)
@@ -69,8 +76,8 @@ func TestOpenIsIdempotent(t *testing.T) {
 	if err := again.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&applied); err != nil {
 		t.Fatal(err)
 	}
-	if applied != 1 {
-		t.Errorf("schema_migrations rows = %d, want 1", applied)
+	if applied != first {
+		t.Errorf("schema_migrations rows = %d after restart, want %d (a migration re-ran)", applied, first)
 	}
 }
 

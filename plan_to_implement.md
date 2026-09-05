@@ -54,52 +54,98 @@ concurrent writers. `go test -race ./...` clean in a linux container; coverage
 
 ---
 
-## Phase 2 — Auth
+## Phase 2 — Auth — **DONE (2026-09-04)**
 
 **Goal:** nothing is reachable unauthenticated.
 
-- Basic auth middleware over all `/api/*` including `/api/events`
-- `subtle.ConstantTimeCompare` for both fields
-- Exempt `/api/health` so container healthchecks don't need credentials
-- Static React assets sit behind auth too
+- [x] Basic auth middleware over all `/api/*` including `/api/events`
+- [x] `subtle.ConstantTimeCompare` for both fields (each field hashed with SHA-256
+  first, so the comparison is length-independent); blank `AUTH_USER`/`AUTH_PASS`
+  authorise nothing
+- [x] Exempt `/api/health` so container healthchecks don't need credentials
+- [x] Static React assets sit behind auth too — the middleware guards a chi group and
+  the static handler joins that group in Phase 9
 
 **Exit:** unauthenticated requests get 401 with `WWW-Authenticate`; SSE works once
 authenticated (browsers send basic auth on `EventSource` requests automatically).
 
+**Exit test result:** passed. In the running container, `GET /api/servers` with no
+credentials returns 401 with `Www-Authenticate: Basic realm="sftp-relay",
+charset="UTF-8"`; wrong credentials also 401; correct credentials 200; `/api/health`
+returns 200 unauthenticated. `httptest` covers all ten authenticated routes for the
+missing-credential case and six wrong-credential shapes. `/api/events` does not exist
+yet, so the SSE half of this criterion is verified in Phase 8, not here.
+
 ---
 
-## Phase 3 — Server CRUD and remote browsing
+## Phase 3 — Server CRUD and remote browsing — **DONE (2026-09-04)**
 
 **Goal:** define SFTP servers and walk their directory trees from the container.
 
-- CRUD handlers for `servers`; credentials stored plaintext per the agreed posture
-- `internal/sftpclient`: dial with `x/crypto/ssh`, wrap in `pkg/sftp`
-- Host key handling: capture on first connect, store, verify thereafter; surface a
-  clear "host key changed" error rather than silently accepting
-- Connection pool keyed by server id, idle eviction after ~2 minutes to hold memory down
-- `GET /api/servers/{id}/browse?path=` returns name, size, mode, modtime, is_dir;
-  sorted directories-first; parent-path safety checks
-- `POST /api/servers/{id}/test` — connect, list root, disconnect, report timing
-- Size pre-computation helper: stat for files, concurrent bounded walk for directories
+- [x] CRUD handlers for `servers`; credentials stored plaintext per the agreed posture.
+  They are write-only on the wire: responses carry `has_password` / `has_private_key`
+  flags, and a blank credential field on `PUT` keeps the stored value.
+- [x] `internal/sftpclient`: dial with `x/crypto/ssh`, wrap in `pkg/sftp`
+- [x] Host key handling: capture on first connect, store, verify thereafter;
+  `ErrHostKeyChanged` surfaces as a 502 carrying remediation text
+- [x] Connection pool keyed by server id, idle eviction after 2 minutes
+- [x] `GET /api/servers/{id}/browse?path=` returns name, size, mode, modtime, is_dir;
+  sorted directories-first; paths cleaned and forced absolute before use
+- [x] `POST /api/servers/{id}/test` — fresh connection, list the default path, report
+  timing; a failure comes back as `ok:false` rather than an HTTP error
+- [x] Size pre-computation helper: stat for files, walk for directories. The walk is
+  **sequential**, not the concurrent bounded walk originally sketched — it is metadata
+  only and the remote round-trip dominates. Marked with a `ponytail:` comment naming
+  the upgrade path.
 
 **Exit:** browse a real remote server end to end via curl, including a deep directory.
 
+**Exit test result:** passed against an in-process SSH+SFTP server, **not yet against a
+real remote server**. The unit tests run a genuine SSH handshake and SFTP protocol
+exchange (`sftp.InMemHandler`) and assert directories-first ordering, sizes including a
+zero-byte file, recursive size totals, host-key capture, host-key-change rejection,
+connection reuse, idle eviction, transparent redial, wrong password, unparseable key
+and connection refused. Server CRUD was exercised through the running container with
+curl. Browsing a real remote SFTP server over the LAN is outstanding and belongs to the
+manual verification section of the definition of done.
+
 ---
 
-## Phase 4 — NAS connection and destination browsing
+## Phase 4 — NAS connection and destination browsing — **DONE (2026-09-04)**
 
 **Goal:** browse the NAS and validate destinations.
 
-- `internal/nas`: SSH to the NAS using the mounted key, SFTP subsystem on top
-- Long-lived connection with keepalives and automatic reconnect
-- `GET /api/nas/browse?path=` — directories only, plus free space if available
-- `POST /api/nas/mkdir`
-- **Path validator:** clean, resolve symlinks, confirm the result is inside an allowed
-  root. Unit test it hard — traversal, symlink escape, unicode, trailing slashes.
-- Startup probe: resolve the absolute path of `lftp` on the NAS, cache it, and fail
-  loudly with a remediation message if absent
+- [x] `internal/nas`: SSH to the NAS using the mounted key, SFTP subsystem on top; the
+  host key is captured on first connect into the `nas_host_key` setting and pinned after
+- [x] Long-lived connection with a 30s keepalive and automatic reconnect on a dead session
+- [x] `GET /api/nas/browse?path=` — directories only, plus free/total space via
+  `StatVFS` where the NAS supports it. An empty `path` lists the allowed roots, which is
+  where the destination picker starts.
+- [x] `POST /api/nas/mkdir`
+- [x] **Path validator** (`nas.CheckPath`): NFC-normalise, require absolute, clean,
+  check containment, resolve symlinks on the NAS, check containment again. Fails closed
+  when no roots are configured. For a path that does not exist yet (mkdir) it resolves
+  the nearest existing ancestor instead.
+- [x] Startup probe: resolves the absolute path of `lftp` on the NAS (PATH first, then
+  the usual Entware and Synology locations), caches it in the `lftp_path` setting, and
+  logs an error carrying `opkg install lftp` remediation if it is absent. It runs in the
+  background so an offline or unconfigured NAS cannot stop the UI coming up.
 
 **Exit:** browse NAS folders, create one, and get a clean rejection for `../../etc`.
+
+**Exit test result:** passed against a fake NAS (in-process SSH, in-memory SFTP and a
+canned exec handler), **not yet against the real Synology**. Tests cover root listing,
+directories-only browsing, parent breadcrumbs, `mkdir` including nested creation,
+rejection of `/volume1/media/../../etc/evil`, host-key capture and change rejection,
+reconnect after a dropped session, the lftp probe both finding and not finding lftp,
+missing and malformed key files, and a closed client refusing work. The validator is
+table-driven over traversal, `..` escapes, prefix-but-not-child (`/volume1/mediafoo`
+against an allowed `/volume1/media`), symlinks pointing inside a root, across roots and
+outside, unicode NFD to NFC, trailing slashes, duplicate separators, the empty string,
+null bytes, relative paths, the filesystem root and an empty allow-list. `CheckPath`,
+`normalise` and `contained` sit at 100% statement coverage. Through the container,
+`GET /api/nas/browse` with no roots configured returns
+`400 {"error":"nas: no allowed destination roots are configured"}`.
 
 ---
 

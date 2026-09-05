@@ -69,6 +69,12 @@ and progress text.
   both in a shell `trap` so cleanup survives a crash.
 - All NAS destination paths are validated against a configured allow-list of roots
   after `filepath.Clean` and symlink resolution. Reject anything that escapes.
+  `nas.CheckPath` is the single implementation; every handler taking a NAS path
+  goes through it, and it fails closed when no roots are configured.
+- Host keys — remote servers and the NAS alike — are captured on first connect
+  and pinned thereafter. A changed key is an error, never a silent accept.
+  Clearing the stored key (server form, or the `nas_host_key` setting) is the
+  deliberate way to re-trust a host.
 
 ## Job execution model
 
@@ -110,8 +116,9 @@ requeued. `pget -c` and `mirror --continue` resume rather than restart.
   (`queued`|`running`|`paused`|`done`|`failed`|`cancelled`|`interrupted`), total_bytes,
   transferred_bytes, speed_bps, eta_seconds, exit_code, error, started_at, finished_at
 - `job_log` — job_id, ts, line (ring-buffered, capped per job)
-- `settings` — key/value: NAS host/user/key path, allowed dest roots, concurrency,
-  segments, history retention
+- `settings` — key/value: `nas_host`, `nas_user`, `nas_port`, `nas_host_key`,
+  `nas_tmp`, `lftp_path`, `allowed_dest_roots`, `concurrency`, `segments`,
+  `history_retention_days`
 
 Migrations are plain numbered `.sql` files applied in order at startup.
 
